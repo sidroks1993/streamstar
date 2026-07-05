@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import BackgroundLogo from "../components/BackgroundLogo";
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock, Link2, Hash, Sparkles } from "lucide-react";
+import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock, Link2, Hash, Sparkles, Crown } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -95,10 +95,110 @@ export default function Dashboard() {
     }
   };
 
+  // Split rooms: super-admin-hosted rooms are shown as a curated "SuperAdmin Rooms" band;
+  // everything else falls into the "Public rooms" grid.
+  const adminRooms = useMemo(() => rooms.filter((r) => r.host_role === "super_admin"), [rooms]);
+  const publicRooms = useMemo(() => rooms.filter((r) => r.host_role !== "super_admin"), [rooms]);
+
+  const renderRoomCard = (r, idx, kind) => (
+    <div
+      key={r.room_id}
+      className={`ss-room-card ss-card-in group rounded-xl border p-5 ${
+        kind === "admin"
+          ? "border-[#A855F7]/30 bg-gradient-to-br from-[#0E0E0E] to-[#1a0b1f]"
+          : "border-white/10 bg-[#0E0E0E]"
+      }`}
+      style={{ animationDelay: `${Math.min(idx * 60, 480)}ms` }}
+      data-testid={`room-card-${r.room_id}`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="font-display text-lg leading-tight group-hover:ss-gradient-text transition-colors flex items-center gap-2">
+            {kind === "admin" && <Crown className="w-4 h-4 text-[#EC4899] shrink-0" />} {r.name}
+          </h3>
+          <div className="text-xs text-white/40 mt-1">Hosted by {r.host_name || "—"}</div>
+        </div>
+        <span
+          className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1.5 ${
+            r.participant_count > 0
+              ? "bg-[#A855F7]/10 border-[#A855F7]/40 text-[#A855F7]"
+              : "bg-white/5 border-white/10 text-white/60"
+          }`}
+        >
+          {r.participant_count > 0 && (
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A855F7] opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#A855F7]" />
+            </span>
+          )}
+          <Users className="w-3 h-3" /> {r.participant_count}
+        </span>
+      </div>
+
+      {r.code && (
+        <div className="rounded-lg border border-[#A855F7]/25 bg-gradient-to-br from-[#A855F7]/10 to-[#C026D3]/5 p-3 mb-4 space-y-2" data-testid={`share-block-${r.room_id}`}>
+          <div className="flex items-center gap-2">
+            <Hash className="w-3.5 h-3.5 text-[#A855F7] shrink-0" />
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/50 w-14 shrink-0">Code</div>
+            <button
+              onClick={() => copyCode(r.code)}
+              className="flex-1 min-w-0 font-mono text-sm text-white tracking-widest text-left truncate hover:text-[#A855F7] transition-colors"
+              data-testid={`room-code-${r.room_id}`}
+              title="Click to copy code"
+            >
+              {r.code.toUpperCase()}
+            </button>
+            <button
+              onClick={() => copyCode(r.code)}
+              className="text-white/50 hover:text-white p-1 rounded hover:bg-white/5"
+              data-testid={`copy-code-${r.room_id}`}
+              aria-label="Copy code"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link2 className="w-3.5 h-3.5 text-[#A855F7] shrink-0" />
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/50 w-14 shrink-0">Link</div>
+            <button
+              onClick={() => copyLink(r.room_id)}
+              className="flex-1 min-w-0 text-xs text-white/70 truncate text-left hover:text-[#A855F7] transition-colors"
+              data-testid={`room-link-${r.room_id}`}
+              title="Click to copy link"
+            >
+              {`${window.location.origin.replace(/^https?:\/\//, "")}/watch/${r.room_id}`}
+            </button>
+            <button
+              onClick={() => copyLink(r.room_id)}
+              className="text-white/50 hover:text-white p-1 rounded hover:bg-white/5"
+              data-testid={`copy-room-${r.room_id}`}
+              aria-label="Copy invite link"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Link to={`/watch/${r.room_id}`}>
+        <Button
+          className={`ss-shimmer w-full text-white ${
+            kind === "admin"
+              ? "bg-gradient-to-r from-[#EC4899] to-[#A855F7] hover:opacity-90"
+              : "bg-[#A855F7] hover:bg-[#C026D3]"
+          }`}
+          data-testid={`join-room-${r.room_id}`}
+        >
+          {r.code ? "Enter room" : "Knock to join"}
+        </Button>
+      </Link>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#050505] text-white relative overflow-hidden">
       <CursorGlow />
-      <BackgroundLogo variant="peek" />
+      <BackgroundLogo variant="full" />
       <FloatingOrbs className="opacity-70" />
       <Navbar />
       <main className="max-w-7xl mx-auto px-6 lg:px-10 py-12 relative z-10">
@@ -223,108 +323,51 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Public rooms */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-2xl tracking-tight flex items-center gap-2">
-            <Radio className="w-5 h-5 text-[#A855F7]" /> Public rooms
-          </h2>
-          <button onClick={load} className="text-xs text-white/50 hover:text-white uppercase tracking-widest" data-testid="refresh-rooms">
-            Refresh
-          </button>
-        </div>
-
+        {/* Split super-admin rooms (curated theater) from public user-hosted rooms */}
         {loading ? (
           <div className="text-white/40 text-sm">Loading rooms…</div>
-        ) : rooms.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/10 bg-[#0A0A0A] p-12 text-center">
-            <Film className="w-8 h-8 text-white/20 mx-auto mb-3" />
-            <p className="text-white/60 text-sm">No public rooms yet. {canHost ? "Create one to get started." : "Check back soon."}</p>
-          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {rooms.map((r, idx) => (
-              <div
-                key={r.room_id}
-                className="ss-room-card ss-card-in group rounded-xl border border-white/10 bg-[#0E0E0E] p-5"
-                style={{ animationDelay: `${Math.min(idx * 60, 480)}ms` }}
-                data-testid={`room-card-${r.room_id}`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-display text-lg leading-tight group-hover:ss-gradient-text transition-colors">{r.name}</h3>
-                    <div className="text-xs text-white/40 mt-1">Hosted by {r.host_name || "—"}</div>
-                  </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1.5 ${
-                      r.participant_count > 0
-                        ? "bg-[#A855F7]/10 border-[#A855F7]/40 text-[#A855F7]"
-                        : "bg-white/5 border-white/10 text-white/60"
-                    }`}
-                  >
-                    {r.participant_count > 0 && (
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A855F7] opacity-75" />
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#A855F7]" />
-                      </span>
-                    )}
-                    <Users className="w-3 h-3" /> {r.participant_count}
-                  </span>
-                </div>
-
-                {/* Prominent share block — visible only to super-admin, the room host, or users who've joined the room */}
-                {r.code && (
-                  <div className="rounded-lg border border-[#A855F7]/25 bg-gradient-to-br from-[#A855F7]/10 to-[#C026D3]/5 p-3 mb-4 space-y-2" data-testid={`share-block-${r.room_id}`}>
-                    <div className="flex items-center gap-2">
-                      <Hash className="w-3.5 h-3.5 text-[#A855F7] shrink-0" />
-                      <div className="text-[10px] uppercase tracking-[0.18em] text-white/50 w-14 shrink-0">Code</div>
-                      <button
-                        onClick={() => copyCode(r.code)}
-                        className="flex-1 min-w-0 font-mono text-sm text-white tracking-widest text-left truncate hover:text-[#A855F7] transition-colors"
-                        data-testid={`room-code-${r.room_id}`}
-                        title="Click to copy code"
-                      >
-                        {r.code.toUpperCase()}
-                      </button>
-                      <button
-                        onClick={() => copyCode(r.code)}
-                        className="text-white/50 hover:text-white p-1 rounded hover:bg-white/5"
-                        data-testid={`copy-code-${r.room_id}`}
-                        aria-label="Copy code"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Link2 className="w-3.5 h-3.5 text-[#A855F7] shrink-0" />
-                      <div className="text-[10px] uppercase tracking-[0.18em] text-white/50 w-14 shrink-0">Link</div>
-                      <button
-                        onClick={() => copyLink(r.room_id)}
-                        className="flex-1 min-w-0 text-xs text-white/70 truncate text-left hover:text-[#A855F7] transition-colors"
-                        data-testid={`room-link-${r.room_id}`}
-                        title="Click to copy link"
-                      >
-                        {`${window.location.origin.replace(/^https?:\/\//, "")}/watch/${r.room_id}`}
-                      </button>
-                      <button
-                        onClick={() => copyLink(r.room_id)}
-                        className="text-white/50 hover:text-white p-1 rounded hover:bg-white/5"
-                        data-testid={`copy-room-${r.room_id}`}
-                        aria-label="Copy invite link"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <Link to={`/watch/${r.room_id}`}>
-                  <Button className="ss-shimmer w-full bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid={`join-room-${r.room_id}`}>
-                    {r.code ? "Enter room" : "Knock to join"}
-                  </Button>
-                </Link>
+          <>
+            {/* SuperAdmin Rooms — curated, always on top */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl tracking-tight flex items-center gap-2">
+                <Crown className="w-5 h-5 text-[#EC4899]" /> SuperAdmin Rooms
+                <span className="text-[10px] uppercase tracking-widest text-white/40 ml-2">Curated by the theater owner</span>
+              </h2>
+              <span className="text-[10px] uppercase tracking-widest text-white/40" data-testid="admin-room-count">{adminRooms.length} {adminRooms.length === 1 ? "room" : "rooms"}</span>
+            </div>
+            {adminRooms.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/10 bg-[#0A0A0A] p-8 text-center mb-10" data-testid="admin-rooms-empty">
+                <Crown className="w-6 h-6 text-white/20 mx-auto mb-2" />
+                <p className="text-white/50 text-xs">The super admin hasn&apos;t opened a room yet. Watch this space.</p>
               </div>
-            ))}
-          </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10" data-testid="admin-rooms-grid">
+                {adminRooms.map((r, idx) => renderRoomCard(r, idx, "admin"))}
+              </div>
+            )}
+
+            {/* Public rooms — everyone else's watch parties */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl tracking-tight flex items-center gap-2">
+                <Radio className="w-5 h-5 text-[#A855F7]" /> Public rooms
+                <span className="text-[10px] uppercase tracking-widest text-white/40 ml-2">Hosted by the community</span>
+              </h2>
+              <button onClick={load} className="text-xs text-white/50 hover:text-white uppercase tracking-widest" data-testid="refresh-rooms">
+                Refresh
+              </button>
+            </div>
+            {publicRooms.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/10 bg-[#0A0A0A] p-12 text-center" data-testid="public-rooms-empty">
+                <Film className="w-8 h-8 text-white/20 mx-auto mb-3" />
+                <p className="text-white/60 text-sm">No community rooms right now. {canHost ? "Create one to get started." : "Once approved hosts open rooms, they'll appear here."}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="public-rooms-grid">
+                {publicRooms.map((r, idx) => renderRoomCard(r, idx, "public"))}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

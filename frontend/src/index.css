@@ -154,6 +154,22 @@ button:active { transform: translateY(1px); }
 }
 .ss-room-card:hover::before { opacity: 1; }
 
+/* Watermark pulse — very slow, very subtle */
+@keyframes ss-watermark-pulse {
+  0%, 100% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 20px rgba(168,85,247,0.1)) drop-shadow(0 0 60px rgba(236,72,153,0.08));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 40px rgba(168,85,247,0.45)) drop-shadow(0 0 120px rgba(236,72,153,0.35));
+  }
+}
+.ss-watermark-pulse {
+  animation: ss-watermark-pulse 7s ease-in-out infinite;
+  will-change: opacity, filter;
+}
+
 /* Empty-state / hero glow badge */
 .ss-live-dot {
   position: relative;

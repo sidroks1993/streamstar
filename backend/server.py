@@ -113,6 +113,7 @@ class RoomOut(BaseModel):
     name: str
     host_id: Optional[str] = None
     host_name: Optional[str] = None
+    host_role: Optional[str] = None
     is_public: bool
     created_by: str
     created_at: str
@@ -856,10 +857,21 @@ def _can_see_code(user: dict, room: dict, visits: Set[str]) -> bool:
 async def list_public_rooms(user: dict = Depends(get_current_user)):
     rooms = await db.rooms.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(200)
     visits = await _visible_room_ids_for(user) if user.get("role") != "super_admin" else set()
+    # Lookup host roles in bulk so we can split super-admin rooms from user-hosted rooms in the UI
+    host_ids = list({r.get("host_id") for r in rooms if r.get("host_id")})
+    role_map: Dict[str, str] = {}
+    if host_ids:
+        users = await db.users.find({"user_id": {"$in": host_ids}}, {"_id": 0, "user_id": 1, "role": 1}).to_list(500)
+        role_map = {u["user_id"]: u.get("role") for u in users}
     out = []
     for r in rooms:
         code = r["room_id"] if _can_see_code(user, r, visits) else None
-        out.append(RoomOut(**r, participant_count=len(ROOMS.get(r["room_id"], {})), code=code))
+        out.append(RoomOut(
+            **r,
+            participant_count=len(ROOMS.get(r["room_id"], {})),
+            code=code,
+            host_role=role_map.get(r.get("host_id")),
+        ))
     return out
 
 @api.get("/rooms/{room_id}", response_model=RoomOut)
@@ -869,7 +881,12 @@ async def get_room(room_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Room not found")
     visits = await _visible_room_ids_for(user) if user.get("role") != "super_admin" else set()
     code = room_id if _can_see_code(user, r, visits) else None
-    return RoomOut(**r, participant_count=len(ROOMS.get(room_id, {})), code=code)
+    host_role = None
+    if r.get("host_id"):
+        u = await db.users.find_one({"user_id": r["host_id"]}, {"_id": 0, "role": 1})
+        if u:
+            host_role = u.get("role")
+    return RoomOut(**r, participant_count=len(ROOMS.get(room_id, {})), code=code, host_role=host_role)
 
 # ---------------- WebSocket signaling + chat ----------------
 

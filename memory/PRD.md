@@ -95,6 +95,11 @@
    - Room cards: staggered fade-in (60ms per card, capped at 480ms), lift-on-hover, gradient border reveal, participant chip glows purple when count > 0 with a live-ping dot, "Enter room" button gets shimmer
    - Floating orbs behind the whole dashboard (70% opacity)
 
+## Iteration 13 (2026-02-05)
+- ✅ **Pulsing full-mark watermark** on both Landing and Dashboard. `<BackgroundLogo variant="full" />` now renders JUST the mark (no wordmark), sized to `min(95vh, 95vw)` so it spans top-to-bottom without stretching. New CSS `.ss-watermark-pulse` cycles opacity 0.85 → 1 + drop-shadow purple/pink glow over 7s, giving a very subtle heartbeat.
+- ✅ **Two-section Dashboard**: "SuperAdmin Rooms" (curated, gradient border, crown icon, EC4899→A855F7 Enter button, "Curated by the theater owner" caption) and "Public rooms" (community-hosted, standard purple treatment) are now split by `host_role` from the new `RoomOut.host_role` field. Backend does a bulk user role lookup at list time and returns the role alongside each room. Frontend uses `useMemo` to split. Data-testids: `admin-rooms-grid`, `admin-rooms-empty`, `admin-room-count`, `public-rooms-grid`, `public-rooms-empty`.
+- ✅ **Empty states** for both sections when no rooms exist in that bucket.
+
 ## Prioritized Backlog
 ### P0 (blocking, none)
 _None_
