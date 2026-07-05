@@ -24,6 +24,85 @@ h1, h2, h3, h4, h5, h6, .font-display {
 
 ::selection { background: #A855F7; color: #fff; }
 
+/* ============================================================
+   Motion & interactive polish (used across landing/dashboard/watch)
+   ============================================================ */
+
+/* Slow float+pulse for background orbs */
+@keyframes ss-orb-float {
+  0%   { transform: translate3d(0,0,0) scale(1);   opacity: 0.45; }
+  50%  { transform: translate3d(0,-12px,0) scale(1.25); opacity: 0.85; }
+  100% { transform: translate3d(0,0,0) scale(1);   opacity: 0.45; }
+}
+.ss-orb {
+  animation-name: ss-orb-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+/* Rotating conic ring around the floating share button */
+@keyframes ss-fab-spin { to { transform: rotate(360deg); } }
+.ss-fab-ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  padding: 2px;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(168,85,247,0.9), rgba(236,72,153,0.9), rgba(34,211,238,0.9), transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  animation: ss-fab-spin 4s linear infinite;
+}
+.ss-fab:hover .ss-fab-ring { opacity: 1; }
+
+/* Shimmer sweep for primary buttons — subtle diagonal glare on hover */
+.ss-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ss-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.28) 50%, transparent 60%);
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.22,0.61,0.36,1);
+  pointer-events: none;
+  z-index: 1;
+}
+.ss-shimmer:hover::after { transform: translateX(120%); }
+
+/* Add a soft glow on hover for outline/ghost buttons */
+.ss-btn-glow:hover {
+  box-shadow: 0 0 0 1px rgba(168,85,247,0.35), 0 6px 24px -8px rgba(168,85,247,0.55);
+}
+
+/* Underline sweep for text-links inside prose */
+.ss-link {
+  position: relative;
+}
+.ss-link::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: -2px;
+  width: 100%; height: 1px;
+  background: linear-gradient(90deg, #A855F7, #EC4899, #22D3EE);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.35s ease;
+}
+.ss-link:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* Global: give every button a slight lift on active */
+button:active { transform: translateY(1px); }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

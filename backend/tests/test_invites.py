@@ -1,5 +1,9 @@
 """Iteration 9+10 tests: invites, legacy notification aliases, WS auto-admit-after-invite."""
-import asyncio, json, os, uuid, time
+import asyncio
+import json
+import os
+import uuid
+import time
 from datetime import datetime, timedelta, timezone
 
 import jwt

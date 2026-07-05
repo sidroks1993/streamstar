@@ -1,9 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import Logo from "../components/Logo";
-import { Film, Users, MessageCircle, Wand2, ShieldCheck, Share2 } from "lucide-react";
+import { Film, Users, MessageCircle, Wand2, ShieldCheck, Share2, Download } from "lucide-react";
 import { Button } from "../components/ui/button";
 import Navbar from "../components/Navbar";
+import CursorGlow from "../components/CursorGlow";
+import FloatingOrbs from "../components/FloatingOrbs";
+import BackgroundLogo from "../components/BackgroundLogo";
+import ShareSite from "../components/ShareSite";
 
 const HERO_BG = "https://images.pexels.com/photos/18501410/pexels-photo-18501410.jpeg";
 
@@ -22,7 +26,11 @@ const features = [
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
+    <div className="min-h-screen bg-[#050505] text-white relative overflow-hidden" data-testid="landing-root">
+      <CursorGlow />
+      {/* Enlarged, ghosted brand mark behind the entire page */}
+      <BackgroundLogo variant="full" />
+      <ShareSite />
       <Navbar />
 
       {/* Hero */}
@@ -31,8 +39,9 @@ export default function Landing() {
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${HERO_BG})` }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/70 to-[#050505]" />
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-12 pt-28 pb-32">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/75 to-[#050505]" />
+        <FloatingOrbs className="opacity-90" />
+        <div className="relative max-w-7xl mx-auto px-6 lg:px-12 pt-28 pb-32 z-10">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-white/70 mb-6" data-testid="hero-badge">
               <span className="w-1.5 h-1.5 rounded-full bg-[#A855F7]" />
@@ -47,15 +56,33 @@ export default function Landing() {
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <Link to="/register" data-testid="hero-cta-signup">
-                <Button className="bg-[#A855F7] hover:bg-[#C026D3] text-white px-7 py-6 text-base rounded-md">
+                <Button className="ss-shimmer bg-[#A855F7] hover:bg-[#C026D3] text-white px-7 py-6 text-base rounded-md">
                   Create your theater
                 </Button>
               </Link>
               <Link to="/join" data-testid="hero-cta-join">
-                <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 px-7 py-6 text-base rounded-md">
+                <Button variant="outline" className="ss-btn-glow border-white/20 bg-white/5 text-white hover:bg-white/10 px-7 py-6 text-base rounded-md">
                   Join with code
                 </Button>
               </Link>
+              <div className="flex items-center gap-2 pl-2 border-l border-white/10 ml-1">
+                <span className="text-[10px] uppercase tracking-widest text-white/40 self-center hidden sm:inline">Brand kit</span>
+                <a href="/streamstar-logo.png" download="streamstar-logo-2400.png" data-testid="hero-cta-download-png" title="Download 2400×2400 PNG">
+                  <Button variant="ghost" className="ss-btn-glow text-white/70 hover:text-white hover:bg-white/5 px-3 py-6 rounded-md">
+                    <Download className="w-3.5 h-3.5 mr-1" /> PNG
+                  </Button>
+                </a>
+                <a href="/streamstar-logo.jpg" download="streamstar-logo-2400.jpg" data-testid="hero-cta-download-jpg" title="Download 2400×2400 JPEG">
+                  <Button variant="ghost" className="ss-btn-glow text-white/70 hover:text-white hover:bg-white/5 px-3 py-6 rounded-md">
+                    <Download className="w-3.5 h-3.5 mr-1" /> JPG
+                  </Button>
+                </a>
+                <a href="/streamstar-logo-transparent.png" download="streamstar-logo-transparent-2400.png" data-testid="hero-cta-download-transparent" title="Download 2400×2400 transparent PNG">
+                  <Button variant="ghost" className="ss-btn-glow text-white/70 hover:text-white hover:bg-white/5 px-3 py-6 rounded-md" title="Transparent PNG">
+                    <Download className="w-3.5 h-3.5 mr-1" /> Transparent
+                  </Button>
+                </a>
+              </div>
             </div>
           </div>
         </div>

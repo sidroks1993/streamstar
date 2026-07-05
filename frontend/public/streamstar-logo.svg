@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" aria-label="StreamStar logo">
+  <defs>
+    <linearGradient id="ss-grad" x1="0" y1="0" x2="400" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A855F7" />
+      <stop offset="55%" stop-color="#EC4899" />
+      <stop offset="100%" stop-color="#22D3EE" />
+    </linearGradient>
+    <filter id="ss-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="12" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <!-- four-point starburst -->
+  <path
+    d="M200 20 L230 160 L380 200 L230 240 L200 380 L170 240 L20 200 L170 160 Z"
+    fill="url(#ss-grad)"
+    filter="url(#ss-glow)"
+  />
+  <!-- inner play triangle -->
+  <path d="M175 150 L270 200 L175 250 Z" fill="#0A0A0A" />
+  <path d="M175 150 L270 200 L175 250 Z" fill="url(#ss-grad)" fill-opacity="0.15" />
+  <!-- orbiting spark -->
+  <circle cx="340" cy="80" r="16" fill="#22D3EE" />
+</svg>

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import BackgroundLogo from "../components/BackgroundLogo";
+import CursorGlow from "../components/CursorGlow";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -93,9 +95,11 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
+    <div className="min-h-screen bg-[#050505] text-white relative overflow-hidden">
+      <CursorGlow />
+      <BackgroundLogo variant="peek" />
       <Navbar />
-      <main className="max-w-7xl mx-auto px-6 lg:px-10 py-12">
+      <main className="max-w-7xl mx-auto px-6 lg:px-10 py-12 relative z-10">
         {/* Header */}
         <div className="flex items-end justify-between flex-wrap gap-6 mb-10">
           <div>

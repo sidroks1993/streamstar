@@ -73,6 +73,12 @@
 - ✅ **Invite gate**: anonymous visitors to `/watch/:roomId` are now redirected to `/register?next=<path>` (not `/login`) via a new `registerFirst` prop on `ProtectedRoute`. Register + Login pages both read the `next` query param and honor it on success. A purple "You've been invited to a watch party" banner (data-testid `invite-banner` / `invite-banner-login`) appears on both pages when the redirect came from a /watch route, with a "Sign in instead" cross-link that preserves the redirect target.
 - ✅ **Code visibility rules** (already implemented in iter 7, re-affirmed): super-admin sees all codes; hosts see only their own; general users see codes only for rooms they have previously been admitted to via the knock flow. This matches "the superadmin/hosts allow them to" precisely — admission upserts `room_visits` which is the allow-list.
 
+## Iteration 11 (2026-02-05)
+- ✅ **Cursor & motion polish**: new `<CursorGlow />` component draws a soft purple/pink/cyan spring-tracked glow behind the cursor on non-touch devices. `<FloatingOrbs />` peppers the hero with pulsing, floating brand-color orbs. Global CSS gets `ss-shimmer` (diagonal glare sweep on primary buttons), `ss-btn-glow` (soft purple hover ring), `ss-fab-ring` (rotating conic gradient around the share FAB), `ss-orb-float` keyframes, and `ss-link` (rainbow underline sweep). Every button now has a subtle press-down via `button:active`.
+- ✅ **Site share FAB**: new `<ShareSite />` component fixed to the top-left of the landing page — pill-shaped FAB with rotating conic ring on hover; opens a popover with Copy link, Share on WhatsApp, and (on mobile) native share sheet. Data-testids: `share-site-btn`, `share-site-popover`, `share-site-copy`, `share-site-whatsapp`, `share-site-native`.
+- ✅ **Ghost logo watermark**: `<BackgroundLogo variant="full" />` centers a huge, ~3.5% opacity brand mark behind the landing page. `<BackgroundLogo variant="peek" />` anchors a partial mark to the bottom-right of the dashboard for a subtle "peeking" watermark. Both are `pointer-events: none` and non-interactive.
+- ✅ **HD brand kit generated + served**: `/streamstar-logo.png` (2400×2400 dark PNG, 110KB), `/streamstar-logo.jpg` (2400×2400 JPEG, 117KB), `/streamstar-logo-transparent.png` (2400×2400 transparent PNG, 132KB), `/streamstar-logo.svg` (source vector). All served by the static CRA build. Landing hero has a "Brand kit" pill with three download buttons.
+
 ## Prioritized Backlog
 ### P0 (blocking, none)
 _None_
