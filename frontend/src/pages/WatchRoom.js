@@ -6,8 +6,9 @@ import VideoPlayer from "../components/VideoPlayer";
 import ChatPanel from "../components/ChatPanel";
 import { ReactionsOverlay, ReactionPicker } from "../components/Reactions";
 import { toast } from "sonner";
-import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square } from "lucide-react";
+import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square, Share2, Mail, MessageCircle } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog";
 
 const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -252,9 +253,28 @@ export default function WatchRoom() {
   };
 
   // Actions
+  const inviteUrl = `${window.location.origin}/watch/${roomId}`;
+  const [inviteOpen, setInviteOpen] = useState(false);
   const copyInvite = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/watch/${roomId}`);
+    navigator.clipboard.writeText(inviteUrl);
     toast.success("Invite link copied");
+  };
+  const copyCode = () => {
+    navigator.clipboard.writeText(roomId);
+    toast.success("Room code copied");
+  };
+  const nativeShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `Join my watch party: ${room?.name || "StreamStar"}`,
+          text: `Come watch with me on StreamStar — room code ${roomId}`,
+          url: inviteUrl,
+        });
+      } else {
+        copyInvite();
+      }
+    } catch { /* user cancelled */ }
   };
 
   const sendReaction = (emoji) => {
@@ -367,8 +387,8 @@ export default function WatchRoom() {
               {recording ? "Stop rec" : isHost ? "Record" : "Request record"}
             </Button>
           )}
-          <Button onClick={copyInvite} variant="ghost" className="text-white/70 hover:text-white hover:bg-white/5" data-testid="copy-invite-btn">
-            <Copy className="w-4 h-4 mr-2" /> Copy invite
+          <Button onClick={() => setInviteOpen(true)} variant="ghost" className="text-white/70 hover:text-white hover:bg-white/5" data-testid="copy-invite-btn">
+            <Copy className="w-4 h-4 mr-2" /> Invite
           </Button>
           <Button onClick={() => setChatOpen((v) => !v)} variant="ghost" className="lg:hidden text-white/70 hover:text-white hover:bg-white/5" data-testid="toggle-chat-btn">
             <MessageSquare className="w-4 h-4" />
@@ -403,6 +423,53 @@ export default function WatchRoom() {
           />
         </div>
       </div>
+
+      {/* Invite dialog — any participant can share */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="bg-[#0E0E0E] border-white/10 text-white sm:max-w-md" data-testid="invite-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-[#A855F7]" /> Invite friends
+            </DialogTitle>
+            <DialogDescription className="text-white/60 text-sm">
+              Anyone with the link can join this room. Share the link, drop the room code, or send it straight to your contacts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <div className="text-xs uppercase tracking-widest text-white/50 mb-2">Room code</div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-black/50 border border-white/10 rounded-md px-4 py-3 font-mono text-lg tracking-widest text-white text-center" data-testid="invite-code">{roomId}</code>
+                <Button onClick={copyCode} variant="ghost" className="text-white/70 hover:text-white hover:bg-white/5" data-testid="invite-copy-code"><Copy className="w-4 h-4" /></Button>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-widest text-white/50 mb-2">Invite link</div>
+              <div className="flex items-center gap-2">
+                <input readOnly value={inviteUrl}
+                  className="flex-1 bg-black/50 border border-white/10 rounded-md px-3 py-2 text-xs text-white/80 truncate"
+                  onFocus={(e) => e.target.select()} data-testid="invite-url" />
+                <Button onClick={copyInvite} className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="invite-copy-link">Copy</Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-2">
+              <Button onClick={nativeShare} variant="outline" className="border-white/10 bg-white/5 hover:bg-white/10 text-white" data-testid="invite-native-share">
+                <Share2 className="w-4 h-4 mr-2" /> Share
+              </Button>
+              <a href={`https://wa.me/?text=${encodeURIComponent(`Join my StreamStar watch party: ${inviteUrl}`)}`} target="_blank" rel="noreferrer" data-testid="invite-whatsapp">
+                <Button variant="outline" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white">
+                  <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
+                </Button>
+              </a>
+              <a href={`mailto:?subject=${encodeURIComponent(`Watch party: ${room?.name}`)}&body=${encodeURIComponent(`Join me on StreamStar — ${inviteUrl}`)}`} data-testid="invite-email">
+                <Button variant="outline" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white">
+                  <Mail className="w-4 h-4 mr-2" /> Email
+                </Button>
+              </a>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
