@@ -100,6 +100,13 @@
 - ✅ **Two-section Dashboard**: "SuperAdmin Rooms" (curated, gradient border, crown icon, EC4899→A855F7 Enter button, "Curated by the theater owner" caption) and "Public rooms" (community-hosted, standard purple treatment) are now split by `host_role` from the new `RoomOut.host_role` field. Backend does a bulk user role lookup at list time and returns the role alongside each room. Frontend uses `useMemo` to split. Data-testids: `admin-rooms-grid`, `admin-rooms-empty`, `admin-room-count`, `public-rooms-grid`, `public-rooms-empty`.
 - ✅ **Empty states** for both sections when no rooms exist in that bucket.
 
+## Iteration 14 (2026-02-05)
+- ✅ **Consolidated SuperAdmin rooms**: startup migration (guarded by `db.system_config: sa_rooms_consolidated_v1`) collapses all super-admin-hosted rooms to a single canonical "SuperAdmin Room" (promotes earliest existing, or creates fresh, then deletes the rest). Ran once — went from 15 leftover test rooms → 1.
+- ✅ **DELETE /api/rooms/{room_id}**: super admin can close any room, host can close their own. Closes cascade to WS (`room_closed` broadcast + 4404), PENDING knock queue (`admission_denied`), `chat_messages`, `room_visits`, and `ROOM_STATE`. Logs `room_closed` event.
+- ✅ **Close (×) button on every room card** for super admin (`close-room-<room_id>` testid). Small X icon in the card header. `window.confirm` before firing.
+- ✅ **Unified "New watch room" button** for everyone. When a non-host clicks it, the dialog auto-fires the host request on open — user just sees "Requested to SuperAdmin for hosting. You'll be notified the moment it's approved." with no mention of the 60-second auto-approve algorithm. When the approval arrives (manually or silently after 60s), the notification bell + auto-refresh brings the user's role up-to-date and the button starts opening the create-room dialog instead.
+- ✅ **Enlarged glowing navbar branding**: 40px mark inside a pulsing purple/pink drop-shadow ring (4s cycle), 24–26px wordmark with a gradient "Star" and text-glow. Navbar height bumped from `h-16` → `h-20`. Data-testid `nav-logo` on the link, `.ss-nav-logo-mark` and `.ss-nav-wordmark` classes for verification.
+
 ## Prioritized Backlog
 ### P0 (blocking, none)
 _None_

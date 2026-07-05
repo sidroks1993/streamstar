@@ -17,10 +17,15 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 bg-[#050505]/80 backdrop-blur-xl border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group" data-testid="nav-logo">
-          <Logo size={22} className="group-hover:rotate-12 transition-transform duration-300" />
-          <span className="font-display text-lg tracking-tight">© StreamStar</span>
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
+        <Link to="/" className="ss-nav-logo flex items-center gap-3 group" data-testid="nav-logo">
+          <span className="ss-nav-logo-mark">
+            <Logo size={40} className="group-hover:rotate-12 transition-transform duration-300" />
+          </span>
+          <span className="ss-nav-wordmark font-display text-2xl md:text-[26px] tracking-tight leading-none">
+            <span className="text-[#22D3EE] mr-0.5 align-super text-[13px] md:text-[15px]">©</span>
+            <span>Stream<span className="ss-gradient-text">Star</span></span>
+          </span>
         </Link>
         <nav className="flex items-center gap-2">
           {user?.role === "super_admin" && (

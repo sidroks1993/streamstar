@@ -272,6 +272,38 @@ async def on_startup():
     except Exception:
         pass
 
+    # One-time consolidation: keep exactly ONE super-admin room called "SuperAdmin Room".
+    # Guarded by a system_config flag so it runs only once.
+    try:
+        cfg = await db.system_config.find_one({"key": "sa_rooms_consolidated_v1"})
+        if not cfg:
+            sa_user = await db.users.find_one({"role": "super_admin"}, {"_id": 0, "user_id": 1, "name": 1})
+            if sa_user:
+                canonical = await db.rooms.find_one({"host_id": sa_user["user_id"], "name": "SuperAdmin Room"}, {"_id": 0})
+                if not canonical:
+                    # Promote the earliest SA room, or create a fresh one
+                    first = await db.rooms.find_one({"host_id": sa_user["user_id"]}, {"_id": 0}, sort=[("created_at", 1)])
+                    if first:
+                        await db.rooms.update_one({"room_id": first["room_id"]}, {"$set": {"name": "SuperAdmin Room"}})
+                        canonical = {**first, "name": "SuperAdmin Room"}
+                    else:
+                        rid = uuid.uuid4().hex[:10]
+                        canonical = {
+                            "room_id": rid,
+                            "name": "SuperAdmin Room",
+                            "host_id": sa_user["user_id"],
+                            "host_name": sa_user.get("name") or "Super Admin",
+                            "is_public": True,
+                            "created_by": sa_user["user_id"],
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                        await db.rooms.insert_one(canonical)
+                # Delete every OTHER super-admin room (test/leftover data)
+                await db.rooms.delete_many({"host_id": sa_user["user_id"], "room_id": {"$ne": canonical["room_id"]}})
+            await db.system_config.insert_one({"key": "sa_rooms_consolidated_v1", "at": datetime.now(timezone.utc).isoformat()})
+    except Exception as e:
+        logger.warning(f"sa_rooms consolidation skipped: {e}")
+
     admin_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
     admin_password = os.environ.get("ADMIN_PASSWORD", "")
     admin_name = os.environ.get("ADMIN_NAME", "Super Admin")
@@ -887,6 +919,42 @@ async def get_room(room_id: str, user: dict = Depends(get_current_user)):
         if u:
             host_role = u.get("role")
     return RoomOut(**r, participant_count=len(ROOMS.get(room_id, {})), code=code, host_role=host_role)
+
+@api.delete("/rooms/{room_id}")
+async def delete_room(room_id: str, user: dict = Depends(get_current_user)):
+    """Close a watch room. Super-admin can close any room; a regular host can close only their own.
+    Any WebSocket clients still connected are kicked with code 4404."""
+    r = await db.rooms.find_one({"room_id": room_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if user.get("role") != "super_admin" and r.get("host_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Only the host or super admin can close this room")
+    # Boot everyone currently in the room
+    participants = list(ROOMS.get(room_id, {}).items())
+    for uid, p in participants:
+        try:
+            await p["ws"].send_json({"type": "room_closed", "by": user.get("name")})
+            await p["ws"].close(code=4404)
+        except Exception:
+            pass
+    ROOMS.pop(room_id, None)
+    ROOM_STATE.pop(room_id, None)
+    STREAM_STARTS.pop(room_id, None)
+    # Same for pending
+    pending = list(PENDING.get(room_id, {}).items())
+    for uid, p in pending:
+        try:
+            await p["ws"].send_json({"type": "admission_denied", "reason": "Room closed by host"})
+            await p["ws"].close(code=4404)
+        except Exception:
+            pass
+    PENDING.pop(room_id, None)
+    # Delete DB records
+    await db.rooms.delete_one({"room_id": room_id})
+    await db.chat_messages.delete_many({"room_id": room_id})
+    await db.room_visits.delete_many({"room_id": room_id})
+    await _log_event("room_closed", actor=user, room=r)
+    return {"ok": True, "room_id": room_id}
 
 # ---------------- WebSocket signaling + chat ----------------
 

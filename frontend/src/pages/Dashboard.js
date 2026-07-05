@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock, Link2, Hash, Sparkles, Crown } from "lucide-react";
+import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock, Link2, Hash, Sparkles, Crown, X } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -95,6 +95,19 @@ export default function Dashboard() {
     }
   };
 
+  const closeRoom = async (r) => {
+    if (!window.confirm(`Close "${r.name}"? Everyone inside will be disconnected. This cannot be undone.`)) return;
+    try {
+      await api.delete(`/rooms/${r.room_id}`);
+      toast.success(`Room "${r.name}" closed`);
+      await load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail) || "Could not close room");
+    }
+  };
+
+  const isSuperAdmin = user?.role === "super_admin";
+
   // Split rooms: super-admin-hosted rooms are shown as a curated "SuperAdmin Rooms" band;
   // everything else falls into the "Public rooms" grid.
   const adminRooms = useMemo(() => rooms.filter((r) => r.host_role === "super_admin"), [rooms]);
@@ -112,27 +125,40 @@ export default function Dashboard() {
       data-testid={`room-card-${r.room_id}`}
     >
       <div className="flex items-start justify-between mb-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <h3 className="font-display text-lg leading-tight group-hover:ss-gradient-text transition-colors flex items-center gap-2">
-            {kind === "admin" && <Crown className="w-4 h-4 text-[#EC4899] shrink-0" />} {r.name}
+            {kind === "admin" && <Crown className="w-4 h-4 text-[#EC4899] shrink-0" />} <span className="truncate">{r.name}</span>
           </h3>
           <div className="text-xs text-white/40 mt-1">Hosted by {r.host_name || "—"}</div>
         </div>
-        <span
-          className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1.5 ${
-            r.participant_count > 0
-              ? "bg-[#A855F7]/10 border-[#A855F7]/40 text-[#A855F7]"
-              : "bg-white/5 border-white/10 text-white/60"
-          }`}
-        >
-          {r.participant_count > 0 && (
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A855F7] opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#A855F7]" />
-            </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1.5 ${
+              r.participant_count > 0
+                ? "bg-[#A855F7]/10 border-[#A855F7]/40 text-[#A855F7]"
+                : "bg-white/5 border-white/10 text-white/60"
+            }`}
+          >
+            {r.participant_count > 0 && (
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A855F7] opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#A855F7]" />
+              </span>
+            )}
+            <Users className="w-3 h-3" /> {r.participant_count}
+          </span>
+          {isSuperAdmin && (
+            <button
+              onClick={() => closeRoom(r)}
+              className="p-1.5 rounded-md text-white/40 hover:text-[#EF4444] hover:bg-[#EF4444]/10 border border-transparent hover:border-[#EF4444]/30 transition-colors"
+              data-testid={`close-room-${r.room_id}`}
+              aria-label="Close room"
+              title="Close this room (super admin)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           )}
-          <Users className="w-3 h-3" /> {r.participant_count}
-        </span>
+        </div>
       </div>
 
       {r.code && (
@@ -258,26 +284,33 @@ export default function Dashboard() {
                 </DialogContent>
               </Dialog>
             ) : (
-              <Dialog open={reqOpen} onOpenChange={setReqOpen}>
+              <Dialog
+                open={reqOpen}
+                onOpenChange={(v) => {
+                  setReqOpen(v);
+                  // Auto-fire the host request the moment a non-host opens this dialog
+                  if (v && !reqStatus) requestHost();
+                }}
+              >
                 <DialogTrigger asChild>
-                  <Button className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="create-room-btn">
-                    <Plus className="w-4 h-4 mr-2" /> New watch room
+                  <Button className="ss-shimmer bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="create-room-btn">
+                    <Sparkles className="w-4 h-4 mr-2" /> New watch room
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="bg-[#0E0E0E] border-white/10 text-white sm:max-w-md" data-testid="request-host-dialog">
                   <DialogHeader>
                     <DialogTitle className="font-display text-2xl flex items-center gap-2">
-                      <ShieldQuestion className="w-5 h-5 text-[#A855F7]" /> Request host access
+                      <ShieldQuestion className="w-5 h-5 text-[#A855F7]" /> Request to host
                     </DialogTitle>
                     <DialogDescription className="text-white/60 text-sm pt-2">
-                      Only approved hosts can stream movies. Send a request to the super admin — you&apos;ll be notified the moment it&apos;s approved.
+                      Only approved hosts can open a watch room. We&apos;ve pinged the SuperAdmin for you — hold tight.
                     </DialogDescription>
                   </DialogHeader>
-                  {reqStatus === "pending" ? (
+                  {reqStatus === "pending" || !reqStatus ? (
                     <div className="rounded-md border border-[#A855F7]/30 bg-[#A855F7]/10 p-4" data-testid="request-pending">
                       <div className="flex items-start gap-2 text-sm">
-                        <Clock className="w-4 h-4 text-[#A855F7] shrink-0 mt-0.5" />
-                        <span>Requested the SuperAdmin for host access. You&apos;ll shortly be notified!</span>
+                        <Clock className="w-4 h-4 text-[#A855F7] shrink-0 mt-0.5 animate-pulse" />
+                        <span>Requested to SuperAdmin for hosting. You&apos;ll be notified the moment it&apos;s approved.</span>
                       </div>
                     </div>
                   ) : reqStatus === "approved" ? (
@@ -286,19 +319,22 @@ export default function Dashboard() {
                     </div>
                   ) : null}
                   <DialogFooter>
-                    {!reqStatus && (
+                    {reqStatus === "approved" ? (
                       <Button
-                        onClick={requestHost}
+                        onClick={() => { setReqOpen(false); setReqStatus(null); }}
                         className="bg-[#A855F7] hover:bg-[#C026D3] text-white"
-                        data-testid="request-host-submit"
+                        data-testid="request-close-btn"
                       >
-                        Request host access
-                      </Button>
-                    )}
-                    {reqStatus === "approved" && (
-                      <Button onClick={() => { setReqOpen(false); setReqStatus(null); }}
-                        className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="request-close-btn">
                         Great, let&apos;s go
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => setReqOpen(false)}
+                        variant="ghost"
+                        className="text-white/60 hover:text-white hover:bg-white/5"
+                        data-testid="request-close-later"
+                      >
+                        I&apos;ll wait
                       </Button>
                     )}
                   </DialogFooter>

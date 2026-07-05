@@ -165,6 +165,21 @@ button:active { transform: translateY(1px); }
     filter: drop-shadow(0 0 40px rgba(168,85,247,0.45)) drop-shadow(0 0 120px rgba(236,72,153,0.35));
   }
 }
+
+/* Navbar branding — enlarged logo + wordmark with a subtle pulsing glow */
+@keyframes ss-nav-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(168,85,247,0.35)) drop-shadow(0 0 14px rgba(236,72,153,0.15)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(168,85,247,0.75)) drop-shadow(0 0 28px rgba(236,72,153,0.45)); }
+}
+.ss-nav-logo-mark {
+  display: inline-flex;
+  animation: ss-nav-glow 4s ease-in-out infinite;
+  will-change: filter;
+}
+.ss-nav-wordmark { text-shadow: 0 0 22px rgba(168,85,247,0.35); }
+.ss-nav-logo:hover .ss-nav-wordmark {
+  text-shadow: 0 0 32px rgba(236,72,153,0.55), 0 0 6px rgba(255,255,255,0.15);
+}
 .ss-watermark-pulse {
   animation: ss-watermark-pulse 7s ease-in-out infinite;
   will-change: opacity, filter;
