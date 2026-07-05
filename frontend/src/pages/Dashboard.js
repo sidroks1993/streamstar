@@ -5,11 +5,11 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "../components/ui/dialog";
 import { toast } from "sonner";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Film, Plus, Users, Radio, Copy, LogIn } from "lucide-react";
+import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -23,6 +23,31 @@ export default function Dashboard() {
   const [joinId, setJoinId] = useState("");
 
   const canHost = user?.can_host || user?.role === "super_admin" || user?.role === "host";
+  const [reqOpen, setReqOpen] = useState(false);
+  const [reqStatus, setReqStatus] = useState(null); // null | 'pending' | 'approved' | 'already'
+  const [autoApproveAt, setAutoApproveAt] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(60);
+  const { refresh } = useAuth();
+
+  useEffect(() => {
+    if (!autoApproveAt) return;
+    const tick = () => {
+      const diff = Math.max(0, Math.round((new Date(autoApproveAt).getTime() - Date.now()) / 1000));
+      setSecondsLeft(diff);
+      if (diff === 0) {
+        // Approval time reached — refresh /auth/me to pick up new role
+        refresh().then((u) => {
+          if (u?.can_host) {
+            setReqStatus("approved");
+            toast.success("You're now a host!");
+          }
+        });
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [autoApproveAt, refresh]);
 
   const load = async () => {
     setLoading(true);
@@ -68,6 +93,23 @@ export default function Dashboard() {
     navigate(`/watch/${match ? match[1] : id}`);
   };
 
+  const requestHost = async () => {
+    try {
+      const { data } = await api.post("/host-requests");
+      if (data.status === "already_host") {
+        toast.success("You are already a host");
+        setReqStatus("approved");
+        refresh();
+        return;
+      }
+      setReqStatus("pending");
+      setAutoApproveAt(data.auto_approve_at);
+      toast.success("Request sent to super admin");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail) || "Could not send request");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-white">
       <Navbar />
@@ -84,7 +126,7 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex gap-3">
-            {canHost && (
+            {canHost ? (
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="create-room-btn">
@@ -116,6 +158,57 @@ export default function Dashboard() {
                       className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="new-room-submit">
                       {creating ? "Creating…" : "Create & enter"}
                     </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            ) : (
+              <Dialog open={reqOpen} onOpenChange={setReqOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="create-room-btn">
+                    <Plus className="w-4 h-4 mr-2" /> New watch room
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-[#0E0E0E] border-white/10 text-white sm:max-w-md" data-testid="request-host-dialog">
+                  <DialogHeader>
+                    <DialogTitle className="font-display text-2xl flex items-center gap-2">
+                      <ShieldQuestion className="w-5 h-5 text-[#E50914]" /> Request host access
+                    </DialogTitle>
+                    <DialogDescription className="text-white/60 text-sm pt-2">
+                      Only approved hosts can stream movies. Request access and the super admin will be notified. If they don&apos;t respond in <span className="text-white">60 seconds</span>, you&apos;ll be auto-approved.
+                    </DialogDescription>
+                  </DialogHeader>
+                  {reqStatus === "pending" ? (
+                    <div className="rounded-md border border-white/10 bg-black/30 p-4">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock className="w-4 h-4 text-[#E50914]" />
+                        <span>Request sent. Auto-approving in</span>
+                        <span className="font-mono text-white text-lg tabular-nums" data-testid="countdown">{secondsLeft}s</span>
+                      </div>
+                      <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#E50914] transition-all duration-1000" style={{ width: `${((60 - secondsLeft) / 60) * 100}%` }} />
+                      </div>
+                    </div>
+                  ) : reqStatus === "approved" ? (
+                    <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-300" data-testid="request-approved">
+                      🎉 You&apos;re now a host. Close this dialog to create a room.
+                    </div>
+                  ) : null}
+                  <DialogFooter>
+                    {!reqStatus && (
+                      <Button
+                        onClick={requestHost}
+                        className="bg-[#E50914] hover:bg-[#F40612] text-white"
+                        data-testid="request-host-submit"
+                      >
+                        Request host access
+                      </Button>
+                    )}
+                    {reqStatus === "approved" && (
+                      <Button onClick={() => { setReqOpen(false); setReqStatus(null); }}
+                        className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="request-close-btn">
+                        Great, let&apos;s go
+                      </Button>
+                    )}
                   </DialogFooter>
                 </DialogContent>
               </Dialog>

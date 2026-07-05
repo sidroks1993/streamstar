@@ -6,7 +6,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { formatApiError } from "../lib/api";
-import { Film } from "lucide-react";
+import { Film, Eye, EyeOff, Check, X } from "lucide-react";
 
 export default function Register() {
   const { register } = useAuth();
@@ -14,10 +14,23 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const passwordsMatch = password.length > 0 && password === confirm;
+  const passwordValid = password.length >= 6;
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!passwordValid) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (!passwordsMatch) {
+      toast.error("Passwords do not match");
+      return;
+    }
     setLoading(true);
     try {
       await register(email, password, name);
@@ -61,11 +74,43 @@ export default function Register() {
           </div>
           <div>
             <Label className="text-white/70 text-xs uppercase tracking-widest">Password</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6}
-              className="mt-2 bg-black/40 border-white/10 text-white focus-visible:ring-white/30"
-              data-testid="register-password" />
+            <div className="relative mt-2">
+              <Input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                required minLength={6}
+                className="bg-black/40 border-white/10 text-white focus-visible:ring-white/30 pr-10"
+                data-testid="register-password" />
+              <button type="button" onClick={() => setShowPw((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-white/50 hover:text-white"
+                data-testid="register-toggle-pw" aria-label="Toggle password visibility">
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {password.length > 0 && !passwordValid && (
+              <div className="mt-1 text-[11px] text-[#E50914]">At least 6 characters</div>
+            )}
           </div>
-          <Button type="submit" disabled={loading} className="w-full bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="register-submit">
+          <div>
+            <Label className="text-white/70 text-xs uppercase tracking-widest">Confirm password</Label>
+            <div className="relative mt-2">
+              <Input type={showPw ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                required minLength={6}
+                className="bg-black/40 border-white/10 text-white focus-visible:ring-white/30 pr-10"
+                data-testid="register-confirm" />
+              {confirm.length > 0 && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 p-1">
+                  {passwordsMatch
+                    ? <Check className="w-4 h-4 text-emerald-500" data-testid="pw-match" />
+                    : <X className="w-4 h-4 text-[#E50914]" data-testid="pw-mismatch" />}
+                </div>
+              )}
+            </div>
+            {confirm.length > 0 && !passwordsMatch && (
+              <div className="mt-1 text-[11px] text-[#E50914]">Passwords do not match</div>
+            )}
+          </div>
+          <Button type="submit" disabled={loading || !passwordsMatch || !passwordValid}
+            className="w-full bg-[#E50914] hover:bg-[#F40612] text-white disabled:opacity-50"
+            data-testid="register-submit">
             {loading ? "Creating…" : "Create account"}
           </Button>
         </form>

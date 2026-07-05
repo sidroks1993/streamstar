@@ -34,11 +34,15 @@
 - ✅ Backend testing: 12/12 endpoints passed
 - ✅ Frontend testing: login → dashboard → create room → watch room → chat over WebSocket → admin toggle all verified end-to-end
 
-## Iteration 2 (2026-02-05)
-- ✅ **Host controls:** kick + chat-mute per participant (dropdown menu on participant chips in ChatPanel)
-- ✅ **Emoji reactions:** floating overlay + 12-emoji picker in the watch room; broadcast to all viewers via WebSocket
-- ✅ **Stream recording:** host-only MediaRecorder toggles record on the local stream; saves as `.webm` to Downloads on stop
-- ✅ Server-side mute enforcement (chat_blocked toast); kicked participants get a toast + auto-redirect to /dashboard
+## Iteration 3 (2026-02-05)
+- ✅ Admin password rotated to `streamstar@1` (see test_credentials.md); backend auto-updates hash on startup
+- ✅ Register: **show/hide password toggle** + **confirm password** field with live match/mismatch indicator; submit disabled until match+valid
+- ✅ Login: show/hide password toggle
+- ✅ Logo always routes to `/` (landing)
+- ✅ Non-host click on "New watch room" → **Request Host** dialog with 60-second countdown + progress bar; auto-approve on timeout, super admin gets a notification
+- ✅ Super-admin **Command Center**: 4 stat tiles (users / hosts / pending / notifs), live Recent Activity feed (auto-refreshes every 15s), enriched Users table with **login count**, **last login**, **joined date**, **auth provider**; search box; per-user actions: host toggle, **reset password**, **delete user**
+- ✅ Self-profile endpoints: `PATCH /api/users/me` (name+email), `POST /api/users/me/change-password`
+- ⏸ **Email verification via Resend** — deferred; user opted to skip email for now, will wire later (backend has `email_verified` field ready; register + login flow simply defaults to `true` until email provider is configured)
 
 ## Prioritized Backlog
 ### P0 (blocking, none)

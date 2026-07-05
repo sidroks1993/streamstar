@@ -16,7 +16,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 bg-[#050505]/80 backdrop-blur-xl border-b border-white/10">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
-        <Link to={user ? "/dashboard" : "/"} className="flex items-center gap-2 group" data-testid="nav-logo">
+        <Link to="/" className="flex items-center gap-2 group" data-testid="nav-logo">
           <Film className="w-5 h-5 text-[#E50914] group-hover:rotate-6 transition-transform" />
           <span className="font-display text-lg tracking-tight">StreamStar</span>
         </Link>

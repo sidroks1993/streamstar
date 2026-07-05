@@ -57,6 +57,10 @@ class UserOut(BaseModel):
     can_host: bool = False
     picture: Optional[str] = None
     auth_provider: str = "email"  # email | google
+    email_verified: bool = True
+    login_count: int = 0
+    last_login: Optional[str] = None
+    created_at: Optional[str] = None
 
 class RegisterIn(BaseModel):
     email: EmailStr
@@ -84,6 +88,25 @@ class RoomOut(BaseModel):
 class GrantHostIn(BaseModel):
     user_id: str
     can_host: bool
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)
+
+class ResetPasswordIn(BaseModel):
+    new_password: str = Field(min_length=6)
+
+class UpdateProfileIn(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    email: Optional[EmailStr] = None
+
+class NotificationOut(BaseModel):
+    id: str
+    type: str
+    message: str
+    user_id: Optional[str] = None
+    created_at: str
+    read: bool = False
 
 # ---------------- Helpers ----------------
 
@@ -113,6 +136,10 @@ def user_to_out(user: dict) -> UserOut:
         can_host=bool(user.get("can_host", False)) or user.get("role") == "super_admin",
         picture=user.get("picture"),
         auth_provider=user.get("auth_provider", "email"),
+        email_verified=bool(user.get("email_verified", True)),
+        login_count=int(user.get("login_count", 0)),
+        last_login=user.get("last_login"),
+        created_at=user.get("created_at"),
     )
 
 async def _find_user_by_token(token: str) -> Optional[dict]:
@@ -175,6 +202,8 @@ async def on_startup():
     await db.users.create_index("user_id", unique=True)
     await db.rooms.create_index("room_id", unique=True)
     await db.user_sessions.create_index("session_token", unique=True)
+    await db.host_requests.create_index("user_id")
+    await db.notifications.create_index("created_at")
 
     admin_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
     admin_password = os.environ.get("ADMIN_PASSWORD", "")
@@ -232,6 +261,14 @@ async def login(body: LoginIn, response: Response):
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    # Track login
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"last_login": now_iso}, "$inc": {"login_count": 1}},
+    )
+    user["last_login"] = now_iso
+    user["login_count"] = user.get("login_count", 0) + 1
     token = create_access_token(user["user_id"])
     _set_cookie(response, "access_token", token, days=7)
     return user_to_out(user)
@@ -333,6 +370,111 @@ async def grant_host(body: GrantHostIn, _: dict = Depends(require_super_admin)):
     )
     user = await db.users.find_one({"user_id": body.user_id}, {"_id": 0})
     return user_to_out(user)
+
+@api.post("/users/{user_id}/reset-password", response_model=UserOut)
+async def reset_password(user_id: str, body: ResetPasswordIn, _: dict = Depends(require_super_admin)):
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    await db.users.update_one({"user_id": user_id}, {"$set": {"password_hash": hash_password(body.new_password)}})
+    return user_to_out(user)
+
+@api.delete("/users/{user_id}")
+async def delete_user(user_id: str, admin: dict = Depends(require_super_admin)):
+    if user_id == admin["user_id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.get("role") == "super_admin":
+        raise HTTPException(status_code=400, detail="Cannot delete another super admin")
+    await db.users.delete_one({"user_id": user_id})
+    return {"ok": True}
+
+@api.patch("/users/me", response_model=UserOut)
+async def update_me(body: UpdateProfileIn, user: dict = Depends(get_current_user)):
+    updates: Dict[str, str] = {}
+    if body.name is not None:
+        updates["name"] = body.name
+    if body.email is not None:
+        new_email = body.email.lower().strip()
+        if new_email != user["email"]:
+            if await db.users.find_one({"email": new_email}):
+                raise HTTPException(status_code=400, detail="Email already in use")
+            updates["email"] = new_email
+    if updates:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+        user = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return user_to_out(user)
+
+@api.post("/users/me/change-password", response_model=UserOut)
+async def change_my_password(body: ChangePasswordIn, user: dict = Depends(get_current_user)):
+    if not user.get("password_hash") or not verify_password(body.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"password_hash": hash_password(body.new_password)}})
+    return user_to_out(user)
+
+# ---------------- Host Requests + Notifications ----------------
+
+async def _add_notification(msg: str, ntype: str, user_id: Optional[str] = None):
+    doc = {
+        "id": uuid.uuid4().hex[:12],
+        "type": ntype,
+        "message": msg,
+        "user_id": user_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "read": False,
+    }
+    await db.notifications.insert_one(doc)
+
+async def _auto_approve_host(user_id: str, delay_seconds: int = 60):
+    await asyncio.sleep(delay_seconds)
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user or user.get("role") == "super_admin":
+        return
+    if user.get("can_host"):
+        return  # already promoted manually
+    await db.users.update_one({"user_id": user_id}, {"$set": {"can_host": True, "role": "host"}})
+    await db.host_requests.update_one({"user_id": user_id, "status": "pending"}, {"$set": {"status": "auto_approved", "resolved_at": datetime.now(timezone.utc).isoformat()}})
+    await _add_notification(f"{user.get('name')} ({user.get('email')}) was auto-approved as host.", "host_auto_approved", user_id)
+
+@api.post("/host-requests")
+async def request_host(user: dict = Depends(get_current_user)):
+    if user.get("role") == "super_admin" or user.get("can_host"):
+        return {"status": "already_host"}
+    existing = await db.host_requests.find_one({"user_id": user["user_id"], "status": "pending"}, {"_id": 0})
+    if existing:
+        return {"status": "pending", "created_at": existing["created_at"], "auto_approve_at": existing.get("auto_approve_at")}
+    now = datetime.now(timezone.utc)
+    auto_at = (now + timedelta(seconds=60)).isoformat()
+    doc = {
+        "id": uuid.uuid4().hex[:12],
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "user_name": user.get("name"),
+        "status": "pending",
+        "created_at": now.isoformat(),
+        "auto_approve_at": auto_at,
+    }
+    await db.host_requests.insert_one(doc)
+    await _add_notification(f"{user.get('name')} ({user['email']}) requested host access.", "host_request", user["user_id"])
+    asyncio.create_task(_auto_approve_host(user["user_id"], 60))
+    return {"status": "pending", "created_at": doc["created_at"], "auto_approve_at": auto_at}
+
+@api.get("/host-requests")
+async def list_host_requests(_: dict = Depends(require_super_admin)):
+    items = await db.host_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return items
+
+@api.get("/notifications", response_model=List[NotificationOut])
+async def list_notifications(_: dict = Depends(require_super_admin)):
+    items = await db.notifications.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return items
+
+@api.post("/notifications/mark-read")
+async def mark_all_read(_: dict = Depends(require_super_admin)):
+    await db.notifications.update_many({"read": False}, {"$set": {"read": True}})
+    return {"ok": True}
 
 # ---------------- Rooms ----------------
 

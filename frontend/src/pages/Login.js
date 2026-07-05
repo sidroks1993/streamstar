@@ -6,13 +6,14 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { formatApiError } from "../lib/api";
-import { Film } from "lucide-react";
+import { Film, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
@@ -54,9 +55,16 @@ export default function Login() {
           </div>
           <div>
             <Label htmlFor="password" className="text-white/70 text-xs uppercase tracking-widest">Password</Label>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 bg-black/40 border-white/10 text-white focus-visible:ring-white/30"
-              required data-testid="login-password" />
+            <div className="relative mt-2">
+              <Input id="password" type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                className="bg-black/40 border-white/10 text-white focus-visible:ring-white/30 pr-10"
+                required data-testid="login-password" />
+              <button type="button" onClick={() => setShowPw((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-white/50 hover:text-white"
+                data-testid="login-toggle-pw" aria-label="Toggle password visibility">
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
           <Button type="submit" disabled={loading} className="w-full bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="login-submit">
             {loading ? "Signing in…" : "Sign in"}
