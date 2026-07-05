@@ -34,6 +34,12 @@
 - ✅ Backend testing: 12/12 endpoints passed
 - ✅ Frontend testing: login → dashboard → create room → watch room → chat over WebSocket → admin toggle all verified end-to-end
 
+## Iteration 2 (2026-02-05)
+- ✅ **Host controls:** kick + chat-mute per participant (dropdown menu on participant chips in ChatPanel)
+- ✅ **Emoji reactions:** floating overlay + 12-emoji picker in the watch room; broadcast to all viewers via WebSocket
+- ✅ **Stream recording:** host-only MediaRecorder toggles record on the local stream; saves as `.webm` to Downloads on stop
+- ✅ Server-side mute enforcement (chat_blocked toast); kicked participants get a toast + auto-redirect to /dashboard
+
 ## Prioritized Backlog
 ### P0 (blocking, none)
 _None_

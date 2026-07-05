@@ -4,8 +4,9 @@ import { useAuth } from "../context/AuthContext";
 import api, { BACKEND_URL, formatApiError } from "../lib/api";
 import VideoPlayer from "../components/VideoPlayer";
 import ChatPanel from "../components/ChatPanel";
+import { ReactionsOverlay, ReactionPicker } from "../components/Reactions";
 import { toast } from "sonner";
-import { Copy, ArrowLeft, Film, MessageSquare } from "lucide-react";
+import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square } from "lucide-react";
 import { Button } from "../components/ui/button";
 
 const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
@@ -22,6 +23,11 @@ export default function WatchRoom() {
   const [isHost, setIsHost] = useState(false);
   const [remoteStream, setRemoteStream] = useState(null);
   const [chatOpen, setChatOpen] = useState(true);
+  const [mutedIds, setMutedIds] = useState([]);
+  const [recording, setRecording] = useState(false);
+  const reactionsRef = useRef(null);
+  const recorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
 
   const wsRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -80,6 +86,7 @@ export default function WatchRoom() {
           setMyId(msg.user_id);
           setIsHost(!!msg.is_host);
           setParticipants(msg.participants || []);
+          setMutedIds(msg.muted || []);
           // Viewer: ask host to start a peer connection for us
           if (!msg.is_host) ws.send(JSON.stringify({ type: "request_stream" }));
           break;
@@ -116,6 +123,23 @@ export default function WatchRoom() {
         case "host_streaming":
           // Viewer sees the host started/stopped
           if (msg.streaming && !isHost) ws.send(JSON.stringify({ type: "request_stream" }));
+          break;
+        case "reaction":
+          reactionsRef.current?.push(msg.emoji, msg.name);
+          break;
+        case "mute_changed":
+          setMutedIds((prev) => {
+            const set = new Set(prev);
+            if (msg.muted) set.add(msg.target); else set.delete(msg.target);
+            return Array.from(set);
+          });
+          break;
+        case "chat_blocked":
+          toast.error(msg.reason || "Message blocked");
+          break;
+        case "kicked":
+          toast.error("You were removed from the room by the host");
+          setTimeout(() => navigate("/dashboard"), 800);
           break;
         default:
           break;
@@ -201,6 +225,59 @@ export default function WatchRoom() {
     toast.success("Invite link copied");
   };
 
+  const sendReaction = (emoji) => {
+    send({ type: "reaction", emoji });
+    reactionsRef.current?.push(emoji, "You");
+  };
+
+  const kick = (targetId) => {
+    if (!window.confirm("Remove this participant from the room?")) return;
+    send({ type: "host_kick", target: targetId });
+    toast("Participant removed");
+  };
+  const muteToggle = (targetId, mute) => {
+    send({ type: "host_mute", target: targetId, mute });
+  };
+
+  const toggleRecording = () => {
+    if (recording) {
+      try { recorderRef.current?.stop(); } catch { /* ignore */ }
+      return;
+    }
+    const stream = localStreamRef.current;
+    if (!stream) {
+      toast.error("Start streaming a movie first, then hit record.");
+      return;
+    }
+    try {
+      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus"
+        : "video/webm";
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
+      recordedChunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: mime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `streamstar-${room?.name || "recording"}-${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setRecording(false);
+        toast.success("Recording saved to your downloads");
+      };
+      rec.start(1000);
+      recorderRef.current = rec;
+      setRecording(true);
+      toast.success("Recording started");
+    } catch (e) {
+      toast.error("Recording not supported in this browser");
+    }
+  };
+
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#050505] text-white gap-4">
@@ -238,6 +315,18 @@ export default function WatchRoom() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isHost && (
+            <Button
+              onClick={toggleRecording}
+              variant="ghost"
+              className={`${recording ? "text-[#E50914]" : "text-white/70"} hover:text-white hover:bg-white/5`}
+              data-testid="record-btn"
+              title={recording ? "Stop recording" : "Start recording"}
+            >
+              {recording ? <Square className="w-4 h-4 mr-2 fill-current" /> : <Circle className="w-4 h-4 mr-2 fill-current text-[#E50914]" />}
+              {recording ? "Stop rec" : "Record"}
+            </Button>
+          )}
           <Button onClick={copyInvite} variant="ghost" className="text-white/70 hover:text-white hover:bg-white/5" data-testid="copy-invite-btn">
             <Copy className="w-4 h-4 mr-2" /> Copy invite
           </Button>
@@ -256,6 +345,10 @@ export default function WatchRoom() {
             remoteStream={remoteStream}
             onStreamReady={onLocalStreamReady}
           />
+          <ReactionsOverlay ref={reactionsRef} />
+          <div className="absolute right-4 top-4 z-10">
+            <ReactionPicker onPick={sendReaction} />
+          </div>
         </div>
         <div className={`${chatOpen ? "flex" : "hidden"} lg:flex w-full lg:w-96 shrink-0`}>
           <ChatPanel
@@ -263,6 +356,10 @@ export default function WatchRoom() {
             myUserId={myId}
             participants={participants}
             onSend={(text) => send({ type: "chat", text })}
+            amIHost={isHost}
+            mutedIds={mutedIds}
+            onKick={kick}
+            onMute={muteToggle}
           />
         </div>
       </div>

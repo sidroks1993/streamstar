@@ -369,6 +369,12 @@ async def get_room(room_id: str, _: dict = Depends(get_current_user)):
 
 # room_id -> { user_id: {"ws": WebSocket, "name": str, "is_host": bool} }
 ROOMS: Dict[str, Dict[str, dict]] = {}
+# room_id -> {"muted": Set[user_id]}
+ROOM_STATE: Dict[str, dict] = {}
+
+def _muted(room_id: str) -> Set[str]:
+    st = ROOM_STATE.setdefault(room_id, {"muted": set()})
+    return st["muted"]
 
 async def _broadcast(room_id: str, message: dict, exclude: Optional[str] = None):
     participants = ROOMS.get(room_id, {})
@@ -432,6 +438,7 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
         "is_host": is_host,
         "host_id": room.get("host_id"),
         "participants": _participants_snapshot(room_id),
+        "muted": list(_muted(room_id)),
     })
     # Notify others of the new participant
     await _broadcast(room_id, {
@@ -448,6 +455,9 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
                 text = (msg.get("text") or "").strip()
                 if not text:
                     continue
+                if user_id in _muted(room_id):
+                    await websocket.send_json({"type": "chat_blocked", "reason": "You are muted by the host."})
+                    continue
                 payload = {
                     "type": "chat",
                     "from": user_id,
@@ -457,6 +467,52 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
                 }
                 # Send to everyone including sender for consistent state
                 await _broadcast(room_id, payload)
+            elif mtype == "reaction":
+                emoji = (msg.get("emoji") or "")[:8]
+                if not emoji:
+                    continue
+                await _broadcast(room_id, {
+                    "type": "reaction",
+                    "from": user_id,
+                    "name": user.get("name"),
+                    "emoji": emoji,
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                })
+            elif mtype == "host_mute":
+                if not is_host:
+                    continue
+                target = msg.get("target")
+                mute = bool(msg.get("mute", True))
+                if not target or target == user_id:
+                    continue
+                muted = _muted(room_id)
+                if mute:
+                    muted.add(target)
+                else:
+                    muted.discard(target)
+                await _broadcast(room_id, {
+                    "type": "mute_changed",
+                    "target": target,
+                    "muted": mute,
+                })
+            elif mtype == "host_kick":
+                if not is_host:
+                    continue
+                target = msg.get("target")
+                if not target or target == user_id:
+                    continue
+                await _send_to(room_id, target, {"type": "kicked", "by": user_id})
+                p = ROOMS.get(room_id, {}).pop(target, None)
+                if p:
+                    try:
+                        await p["ws"].close(code=4403)
+                    except Exception:
+                        pass
+                await _broadcast(room_id, {
+                    "type": "participant_left",
+                    "user_id": target,
+                    "participants": _participants_snapshot(room_id),
+                })
             elif mtype in ("webrtc_offer", "webrtc_answer", "webrtc_ice"):
                 to = msg.get("to")
                 if not to:
