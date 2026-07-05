@@ -552,7 +552,6 @@ class TestChatPersistenceAndYouTube:
 
             # Room state must still be webrtc / null
             cli = AsyncIOMotorClient(MONGO_URL)
-            db = cli[DB_NAME]
             # No API to read ROOM_STATE (in-memory); check via a fresh join welcome
             cli.close()
             viewer_ws2_token = viewer_session.token

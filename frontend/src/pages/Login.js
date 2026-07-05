@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -7,11 +7,14 @@ import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { formatApiError } from "../lib/api";
 import Logo from "../components/Logo";
-import { Film, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Film } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = params.get("next") || "/dashboard";
+  const isInviteRedirect = /^\/watch\//.test(next);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -25,7 +28,7 @@ export default function Login() {
     try {
       await login(email, password);
       toast.success("Welcome back");
-      navigate("/dashboard");
+      navigate(next);
     } catch (err) {
       const msg = formatApiError(err.response?.data?.detail) || "Login failed";
       toast.error(msg);
@@ -46,7 +49,7 @@ export default function Login() {
 
   const googleLogin = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = window.location.origin + "/dashboard";
+    const redirectUrl = window.location.origin + next;
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
 
@@ -58,7 +61,18 @@ export default function Login() {
           <span className="font-display text-lg">StreamStar</span>
         </Link>
         <h1 className="font-display text-3xl mb-2 tracking-tight">Sign in</h1>
-        <p className="text-white/60 text-sm mb-8">Welcome back. Let&apos;s find something to watch together.</p>
+        <p className="text-white/60 text-sm mb-6">Welcome back. Let&apos;s find something to watch together.</p>
+        {isInviteRedirect && (
+          <div className="mb-6 rounded-lg border border-[#A855F7]/30 bg-gradient-to-br from-[#A855F7]/15 to-[#EC4899]/5 p-4 flex items-start gap-3" data-testid="invite-banner-login">
+            <div className="w-9 h-9 rounded-md bg-[#A855F7]/20 border border-[#A855F7]/40 flex items-center justify-center shrink-0">
+              <Film className="w-4 h-4 text-[#A855F7]" />
+            </div>
+            <div className="text-sm">
+              <div className="text-white font-medium">Sign in to join the watch party</div>
+              <div className="text-white/60 mt-1">You&apos;ll knock and the host will let you in.</div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={submit} className="space-y-4" data-testid="login-form">
           <div>
@@ -106,7 +120,7 @@ export default function Login() {
         </Button>
 
         <p className="text-sm text-white/60 mt-8 text-center">
-          No account yet? <Link to="/register" className="text-[#A855F7] hover:text-[#C026D3]" data-testid="link-register">Create one</Link>
+          No account yet? <Link to={`/register${isInviteRedirect ? `?next=${encodeURIComponent(next)}` : ""}`} className="text-[#A855F7] hover:text-[#C026D3]" data-testid="link-register">Create one</Link>
         </p>
         <p className="text-xs text-white/40 mt-2 text-center">
           <Link to="/forgot-password" className="hover:text-white" data-testid="link-forgot">Forgot password?</Link>

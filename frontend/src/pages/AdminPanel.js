@@ -7,7 +7,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
 import { toast } from "sonner";
-import { ShieldCheck, Crown, Video, User as UserIcon, KeyRound, Trash2, Bell, RefreshCw, Activity, DoorOpen, Radio, Film, LogIn, LogOut as LogOutIcon } from "lucide-react";
+import { ShieldCheck, Crown, Video, User as UserIcon, KeyRound, Trash2, Bell, RefreshCw, Activity, DoorOpen, Radio, Film, LogIn, LogOut as LogOutIcon, Copy, Link2, Hash, Users } from "lucide-react";
 
 function fmt(iso) {
   if (!iso) return "—";
@@ -46,6 +46,7 @@ export default function AdminPanel() {
   const [notifs, setNotifs] = useState([]);
   const [requests, setRequests] = useState([]);
   const [events, setEvents] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [eventFilter, setEventFilter] = useState("all");
@@ -55,21 +56,28 @@ export default function AdminPanel() {
   const load = async () => {
     setLoading(true);
     try {
-      const [u, n, r, e] = await Promise.all([
+      const [u, n, r, e, rm] = await Promise.all([
         api.get("/users"),
         api.get("/notifications"),
         api.get("/host-requests"),
         api.get("/events"),
+        api.get("/rooms"),
       ]);
       setUsers(u.data);
       setNotifs(n.data);
       setRequests(r.data);
       setEvents(e.data);
+      setRooms(rm.data);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || "Cannot load admin data");
     } finally {
       setLoading(false);
     }
+  };
+
+  const copyText = (label, val) => {
+    navigator.clipboard.writeText(val);
+    toast.success(`${label} copied`);
   };
 
   useEffect(() => { load(); const id = setInterval(load, 15000); return () => clearInterval(id); }, []);
@@ -196,6 +204,55 @@ export default function AdminPanel() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* All watch rooms — super admin sees every room code + link */}
+        <div className="flex items-center gap-2 mb-4 mt-8">
+          <Video className="w-5 h-5 text-[#A855F7]" />
+          <h2 className="font-display text-2xl tracking-tight">All watch rooms</h2>
+          <span className="text-xs text-white/40 ml-2">{rooms.length} total</span>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-[#0E0E0E] overflow-hidden mb-10" data-testid="all-rooms-table">
+          {rooms.length === 0 ? (
+            <div className="p-8 text-white/40 text-sm text-center">No rooms yet.</div>
+          ) : rooms.map((r) => (
+            <div key={r.room_id} className="px-6 py-4 border-b border-white/5 grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-center" data-testid={`admin-room-${r.room_id}`}>
+              <div className="min-w-0">
+                <div className="font-display text-base text-white truncate">{r.name}</div>
+                <div className="text-[11px] text-white/40 mt-0.5">Hosted by {r.host_name || "—"} · {r.is_public ? "Public" : "Private"} · {fmt(r.created_at)}</div>
+              </div>
+              <div className="flex items-center gap-2 min-w-0">
+                <Hash className="w-3.5 h-3.5 text-[#A855F7] shrink-0" />
+                <button
+                  onClick={() => copyText("Code", r.room_id)}
+                  className="font-mono text-sm text-white tracking-widest hover:text-[#A855F7] truncate max-w-[160px]"
+                  data-testid={`admin-room-code-${r.room_id}`}
+                  title="Copy code"
+                >
+                  {r.room_id.toUpperCase()}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 min-w-0">
+                <Link2 className="w-3.5 h-3.5 text-[#A855F7] shrink-0" />
+                <button
+                  onClick={() => copyText("Link", `${window.location.origin}/watch/${r.room_id}`)}
+                  className="text-xs text-white/70 hover:text-[#A855F7] truncate max-w-[240px]"
+                  data-testid={`admin-room-link-${r.room_id}`}
+                  title="Copy invite link"
+                >
+                  {`${window.location.origin.replace(/^https?:\/\//, "")}/watch/${r.room_id}`}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-1 rounded-full bg-white/5 border border-white/10 text-white/60 flex items-center gap-1">
+                  <Users className="w-3 h-3" /> {r.participant_count}
+                </span>
+                <a href={`/watch/${r.room_id}`} target="_blank" rel="noreferrer" data-testid={`admin-room-open-${r.room_id}`}>
+                  <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/5">Open</Button>
+                </a>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Users */}

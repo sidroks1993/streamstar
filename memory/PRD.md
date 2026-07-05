@@ -67,6 +67,12 @@
 - ✅ **Code visibility**: `RoomOut.code` field is now conditionally populated. Super-admin sees all codes; a host sees codes for rooms they host; general users see codes only for rooms they've previously joined (tracked in the new `room_visits` collection). Dashboard cards render the share-block only when `r.code` is present, and the join button says "Knock to join" otherwise.
 - ✅ **Knock-to-enter**: WebSocket handler now routes non-host / non-admin / first-time visitors into a `PENDING` queue with `pending_admission` message. Host sees a floating "N people knocking" panel with Check/X buttons; sends `join_response` back. Approvals emit `admission_granted` + persist `room_visits`; denials emit `admission_denied` and close the socket (4403). Auto-admit on reconnect for previously admitted users. Stream sessions logged with duration when host toggles `host_streaming` on/off (also captures host-disconnect while streaming).
 
+## Iteration 9 (2026-02-05)
+- ✅ **P1 gap fix**: `WatchRoom` now calls `GET /api/config/webrtc` on mount and hands the resulting iceServers (STUN + OpenRelay TURN) to every `new RTCPeerConnection` — TURN P1 is now live for viewers behind strict NATs.
+- ✅ **Admin Panel "All watch rooms" section**: super-admin dashboard AND admin panel expose every room's CODE + invite LINK with click-to-copy buttons and per-room participant counts + Open shortcut. `data-testid`: `all-rooms-table`, `admin-room-<id>`, `admin-room-code-<id>`, `admin-room-link-<id>`, `admin-room-open-<id>`.
+- ✅ **Invite gate**: anonymous visitors to `/watch/:roomId` are now redirected to `/register?next=<path>` (not `/login`) via a new `registerFirst` prop on `ProtectedRoute`. Register + Login pages both read the `next` query param and honor it on success. A purple "You've been invited to a watch party" banner (data-testid `invite-banner` / `invite-banner-login`) appears on both pages when the redirect came from a /watch route, with a "Sign in instead" cross-link that preserves the redirect target.
+- ✅ **Code visibility rules** (already implemented in iter 7, re-affirmed): super-admin sees all codes; hosts see only their own; general users see codes only for rooms they have previously been admitted to via the knock flow. This matches "the superadmin/hosts allow them to" precisely — admission upserts `room_visits` which is the allow-list.
+
 ## Prioritized Backlog
 ### P0 (blocking, none)
 _None_

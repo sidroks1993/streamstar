@@ -29,7 +29,7 @@ function AppRouter() {
       <Route path="/join" element={<JoinByCode />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPanel /></ProtectedRoute>} />
-      <Route path="/watch/:roomId" element={<ProtectedRoute><WatchRoom /></ProtectedRoute>} />
+      <Route path="/watch/:roomId" element={<ProtectedRoute registerFirst><WatchRoom /></ProtectedRoute>} />
     </Routes>
   );
 }

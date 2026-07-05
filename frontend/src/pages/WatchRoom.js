@@ -48,6 +48,16 @@ export default function WatchRoom() {
   const localStreamRef = useRef(null);
   const peersRef = useRef(new Map()); // peer_user_id -> RTCPeerConnection
 
+  // Fetch WebRTC ICE config (STUN + TURN when configured) once
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get("/config/webrtc");
+        if (data?.iceServers?.length) setIceConfig({ iceServers: data.iceServers });
+      } catch { /* fall back to default STUN */ }
+    })();
+  }, []);
+
   // Load room details
   useEffect(() => {
     (async () => {

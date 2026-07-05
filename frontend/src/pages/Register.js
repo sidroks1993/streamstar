@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -7,11 +7,14 @@ import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { formatApiError } from "../lib/api";
 import Logo from "../components/Logo";
-import { Film, Eye, EyeOff, Check, X } from "lucide-react";
+import { Eye, EyeOff, Check, X, Film, DoorOpen } from "lucide-react";
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = params.get("next") || "/dashboard";
+  const isInviteRedirect = /^\/watch\//.test(next);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,7 +39,7 @@ export default function Register() {
     try {
       await register(email, password, name);
       toast.success("Account created");
-      navigate("/dashboard");
+      navigate(next);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || "Registration failed");
     } finally {
@@ -46,7 +49,7 @@ export default function Register() {
 
   const googleLogin = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = window.location.origin + "/dashboard";
+    const redirectUrl = window.location.origin + next;
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
 
@@ -58,7 +61,18 @@ export default function Register() {
           <span className="font-display text-lg">StreamStar</span>
         </Link>
         <h1 className="font-display text-3xl mb-2 tracking-tight">Create your account</h1>
-        <p className="text-white/60 text-sm mb-8">Two clicks and you&apos;re in the theater.</p>
+        <p className="text-white/60 text-sm mb-6">Two clicks and you&apos;re in the theater.</p>
+        {isInviteRedirect && (
+          <div className="mb-6 rounded-lg border border-[#A855F7]/30 bg-gradient-to-br from-[#A855F7]/15 to-[#EC4899]/5 p-4 flex items-start gap-3" data-testid="invite-banner">
+            <div className="w-9 h-9 rounded-md bg-[#A855F7]/20 border border-[#A855F7]/40 flex items-center justify-center shrink-0">
+              <DoorOpen className="w-4 h-4 text-[#A855F7]" />
+            </div>
+            <div className="text-sm">
+              <div className="text-white font-medium">You&apos;ve been invited to a watch party</div>
+              <div className="text-white/60 mt-1">Sign up to knock — the host will admit you in seconds. Already have an account? <Link to={`/login?next=${encodeURIComponent(next)}`} className="text-[#A855F7] hover:text-[#C026D3]" data-testid="invite-signin-link">Sign in instead</Link>.</div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={submit} className="space-y-4" data-testid="register-form">
           <div>
