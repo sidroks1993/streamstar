@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 8 P1 testing: TURN/ICE config endpoint, chat persistence + history replay, YouTube WS handlers, and YouTube UI dialog. Backend 6/6 new tests PASS (plus 10/11 legacy pass — 1 pre-existing xdist flake in TestKnockFlow unrelated to iter8). Frontend YouTube host flow WORKS end-to-end (open dialog, paste URL, iframe renders, Stop YouTube toggles back). One CRITICAL frontend gap: GET /api/config/webrtc is NEVER called — `iceConfig` state is initialized to hardcoded Google STUN and never updated, so the TURN P1 has zero effect on actual peer connections.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "WatchRoom.js iceConfig",
+        "issue": "GET /api/config/webrtc is NEVER called on mount. `setIceConfig` is declared (line 42) but has no useEffect that fetches /config/webrtc. `iceConfig` stays as DEFAULT_ICE (only google STUN). Consequently `new RTCPeerConnection(iceConfig)` on line 263 never gets the TURN entry from the backend, defeating the whole TURN P1.",
+        "selector": "WatchRoom.js (fetch effect missing)",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter8.xml",
+    "/app/test_reports/pytest/iter8_full.xml"
+  ],
+  "action_items": [
+    "In /app/frontend/src/pages/WatchRoom.js add: useEffect(() => { api.get('/config/webrtc').then(({data}) => setIceConfig(data)).catch(() => {}); }, []); so the iceServers array (including TURN) is used for new RTCPeerConnection instances. Currently the backend endpoint is fully functional (200 with STUN+TURN including openrelayproject creds), but the frontend simply ignores it.",
+    "Optional: log the resolved iceConfig to console in dev to help debug NAT scenarios."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 1259 lines and growing — the auth/rooms/ws/notifications/events layers should be split into modules for maintainability.",
+    "In WS handler, `set_yt` accepts any non-empty string as a video_id — no server-side validation of the 11-char YouTube id format. Not a security issue but a client that misbehaves could push garbage IDs to viewers. Consider validating with a regex ^[A-Za-z0-9_-]{11}$.",
+    "chat_messages persistence: `text[:1000]` truncation happens both in the WS broadcast and the Mongo insert — good — but there's no TTL/retention limit. Statement says PERMANENT retention, so that's intended, but consider adding a TTL index later if collection grows.",
+    "`_load_chat_history` returns latest 100 in chronological order (find sort ts desc, reverse). Good, but the sort uses ISO string timestamps — safe for our format but fragile if timezone-naive strings ever slip in."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (appended 6 new tests: TestWebrtcConfig ×2, TestChatPersistenceAndYouTube ×4)"
+  ],
+  "success_rate": {
+    "backend": "100% for iter8 (6/6). Full suite 16/17 pass (1 pre-existing xdist flake in TestKnockFlow — passes in isolation).",
+    "frontend": "~85% — YouTube UI flow fully working; WebRTC ICE config gap unresolved."
+  },
+  "test_credentials": "sidroks@hotmail.com / streamstar@1 (super admin) — confirmed working. viewer_selftest_1783276117@example.com / viewer1234 also works.",
+  "seed_data_creation": "Backend tests create fresh rooms per test via POST /api/rooms as admin and upsert room_visits to pre-admit the throwaway viewer (`test_knock_*` accounts, one per pytest worker session). Frontend UI test created one live room 'Iter8 UI Test' / 'Iter8 YT State Room' (visible in dashboard).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend iter8 fully green: /api/config/webrtc returns STUN + TURN with openrelayproject creds; chat_messages collection has {id, room_id, from, name, text, ts} and is replayed via chat_history WS message on join; set_yt/yt_state handlers are host-gated and properly broadcast; yt_set/yt_cleared events logged. The only remaining P1 gap is that WatchRoom.js never calls /config/webrtc — trivial fix (one useEffect). Once fixed, retest by opening a room in Chrome with devtools Network tab filtered to `config/webrtc` and verifying the response's iceServers array is what RTCPeerConnection receives (add a temporary console.log(iceConfig) before `new RTCPeerConnection`).",
+  "rca of the issue": "Root cause: `WatchRoom.js` was refactored to add `iceConfig` state (line 42, initialised to DEFAULT_ICE which only contains Google STUN) and to pass it into `new RTCPeerConnection(iceConfig)` (line 263), but the developer forgot to add a useEffect that actually fetches `/api/config/webrtc` and calls `setIceConfig(data)`. Grep for `config/webrtc` under /app/frontend/src returns zero matches. Backend endpoint verified working: `curl -sk https://watch-together-150.preview.emergentagent.com/api/config/webrtc -H 'Cookie: access_token=<jwt>'` returns `{iceServers: [{urls: 'stun:...'}, {urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject'}]}`. Fix: add one useEffect near line 43-45: `useEffect(() => { api.get('/config/webrtc').then(({data}) => setIceConfig(data)).catch(() => {}); }, []);`. Reproduction: open browser devtools -> Network -> filter 'config' -> join any watch room -> observe NO request to /api/config/webrtc is made."
+}

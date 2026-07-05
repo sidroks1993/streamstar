@@ -3,14 +3,16 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api, { BACKEND_URL, formatApiError } from "../lib/api";
 import VideoPlayer from "../components/VideoPlayer";
+import YouTubePlayer, { parseYouTubeId } from "../components/YouTubePlayer";
 import ChatPanel from "../components/ChatPanel";
 import { ReactionsOverlay, ReactionPicker } from "../components/Reactions";
 import { toast } from "sonner";
-import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square, Share2, Mail, MessageCircle, DoorOpen, Check, X, Loader2 } from "lucide-react";
+import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square, Share2, Mail, MessageCircle, DoorOpen, Check, X, Loader2, Youtube } from "lucide-react";
 import { Button } from "../components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
 
-const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+const DEFAULT_ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
 export default function WatchRoom() {
   const { roomId } = useParams();
@@ -30,6 +32,14 @@ export default function WatchRoom() {
   const [admission, setAdmission] = useState(null);
   // Host side: list of {user_id, name, email} awaiting approval
   const [pendingGuests, setPendingGuests] = useState([]);
+  // YouTube mode
+  const [mode, setMode] = useState("webrtc"); // 'webrtc' | 'youtube'
+  const [ytVideoId, setYtVideoId] = useState(null);
+  const [ytRemoteState, setYtRemoteState] = useState(null);
+  const [ytDialogOpen, setYtDialogOpen] = useState(false);
+  const [ytUrlInput, setYtUrlInput] = useState("");
+  // Dynamic ICE (STUN + optional TURN from backend)
+  const [iceConfig, setIceConfig] = useState(DEFAULT_ICE);
   const reactionsRef = useRef(null);
   const recorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -122,8 +132,31 @@ export default function WatchRoom() {
           setMutedIds(msg.muted || []);
           setPendingGuests(msg.pending || []);
           setAdmission("granted");
-          // Viewer: ask host to start a peer connection for us
-          if (!msg.is_host) ws.send(JSON.stringify({ type: "request_stream" }));
+          if (msg.yt_video_id) {
+            setYtVideoId(msg.yt_video_id);
+            setMode(msg.mode || "youtube");
+          } else {
+            setMode(msg.mode || "webrtc");
+          }
+          // Viewer: ask host to start a peer connection for us (only in webrtc mode)
+          if (!msg.is_host && (msg.mode || "webrtc") === "webrtc") ws.send(JSON.stringify({ type: "request_stream" }));
+          break;
+        case "chat_history":
+          setMessages(msg.messages || []);
+          break;
+        case "yt_video":
+          if (msg.video_id) {
+            setYtVideoId(msg.video_id);
+            setMode("youtube");
+            toast("Host started a YouTube video");
+          } else {
+            setYtVideoId(null);
+            setMode("webrtc");
+            toast("Host switched back to the movie stream");
+          }
+          break;
+        case "yt_state":
+          setYtRemoteState(msg.state);
           break;
         case "participant_joined":
           setParticipants(msg.participants || []);
@@ -227,7 +260,7 @@ export default function WatchRoom() {
 
   // ---------- WebRTC (host-driven mesh) ----------
   const createPeer = (peerId) => {
-    const pc = new RTCPeerConnection(ICE);
+    const pc = new RTCPeerConnection(iceConfig);
     pc.onicecandidate = (e) => {
       if (e.candidate) send({ type: "webrtc_ice", to: peerId, data: e.candidate });
     };
@@ -329,6 +362,32 @@ export default function WatchRoom() {
     send({ type: "join_response", target: targetId, approved });
     setPendingGuests((prev) => prev.filter((p) => p.user_id !== targetId));
     toast(approved ? "Guest admitted" : "Knock declined");
+  };
+
+  const submitYouTube = () => {
+    const id = parseYouTubeId(ytUrlInput);
+    if (!id) {
+      toast.error("That doesn't look like a valid YouTube URL");
+      return;
+    }
+    send({ type: "set_yt", video_id: id });
+    setYtVideoId(id);
+    setMode("youtube");
+    setYtDialogOpen(false);
+    setYtUrlInput("");
+    toast.success("Sharing YouTube video with everyone");
+  };
+
+  const clearYouTube = () => {
+    send({ type: "set_yt", video_id: null });
+    setYtVideoId(null);
+    setMode("webrtc");
+    setYtRemoteState(null);
+    toast("Switched back to movie stream");
+  };
+
+  const onYtHostState = (state) => {
+    send({ type: "yt_state", state });
   };
 
   const toggleRecording = () => {
@@ -467,7 +526,30 @@ export default function WatchRoom() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {(isHost || remoteStream) && (
+          {isHost && (
+            mode === "youtube" ? (
+              <Button
+                onClick={clearYouTube}
+                variant="ghost"
+                className="text-[#EC4899] hover:text-white hover:bg-white/5"
+                data-testid="yt-clear-btn"
+                title="Switch back to movie stream"
+              >
+                <Youtube className="w-4 h-4 mr-2" /> Stop YouTube
+              </Button>
+            ) : (
+              <Button
+                onClick={() => setYtDialogOpen(true)}
+                variant="ghost"
+                className="text-white/70 hover:text-white hover:bg-white/5"
+                data-testid="yt-open-btn"
+                title="Play a YouTube video for everyone"
+              >
+                <Youtube className="w-4 h-4 mr-2 text-[#EC4899]" /> YouTube
+              </Button>
+            )
+          )}
+          {(isHost || remoteStream) && mode === "webrtc" && (
             <Button
               onClick={toggleRecording}
               variant="ghost"
@@ -491,12 +573,22 @@ export default function WatchRoom() {
       {/* Main area */}
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 relative min-w-0">
-          <VideoPlayer
-            isHost={isHost}
-            roomName={room.name}
-            remoteStream={remoteStream}
-            onStreamReady={onLocalStreamReady}
-          />
+          {mode === "youtube" ? (
+            <YouTubePlayer
+              isHost={isHost}
+              videoId={ytVideoId}
+              remoteState={ytRemoteState}
+              onStateChange={onYtHostState}
+              roomName={room.name}
+            />
+          ) : (
+            <VideoPlayer
+              isHost={isHost}
+              roomName={room.name}
+              remoteStream={remoteStream}
+              onStreamReady={onLocalStreamReady}
+            />
+          )}
           <ReactionsOverlay ref={reactionsRef} />
           <div className="absolute right-4 top-4 z-10">
             <ReactionPicker onPick={sendReaction} />
@@ -560,6 +652,50 @@ export default function WatchRoom() {
               </a>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Host YouTube URL dialog */}
+      <Dialog open={ytDialogOpen} onOpenChange={setYtDialogOpen}>
+        <DialogContent className="bg-[#0E0E0E] border-white/10 text-white sm:max-w-md" data-testid="yt-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl flex items-center gap-2">
+              <Youtube className="w-5 h-5 text-[#EC4899]" /> Play a YouTube video
+            </DialogTitle>
+            <DialogDescription className="text-white/60 text-sm">
+              Paste any YouTube link — everyone in the room watches in sync. You control play, pause, and seek.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              autoFocus
+              value={ytUrlInput}
+              onChange={(e) => setYtUrlInput(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="bg-black/40 border-white/10 text-white focus-visible:ring-[#A855F7]/40 font-mono"
+              onKeyDown={(e) => { if (e.key === "Enter") submitYouTube(); }}
+              data-testid="yt-url-input"
+            />
+            <div className="text-[11px] text-white/40">Supports `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/embed/`, or a bare 11-char video ID.</div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setYtDialogOpen(false)}
+              variant="ghost"
+              className="text-white/60 hover:text-white hover:bg-white/5"
+              data-testid="yt-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitYouTube}
+              disabled={!ytUrlInput.trim()}
+              className="bg-[#EC4899] hover:bg-[#A855F7] text-white"
+              data-testid="yt-submit"
+            >
+              <Youtube className="w-4 h-4 mr-2" /> Play for everyone
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

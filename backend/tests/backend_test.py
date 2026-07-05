@@ -329,3 +329,273 @@ class TestKnockFlow:
                 pass
 
         _run_async(_flow())
+
+
+# =====================================================================
+# Iteration 8: TURN/webrtc config, chat persistence, YouTube WS handlers
+# =====================================================================
+
+async def _drain(ws, timeout=1.0, max_msgs=20):
+    """Read all messages available on a WS within a short window."""
+    out = []
+    for _ in range(max_msgs):
+        try:
+            m = await asyncio.wait_for(ws.recv(), timeout=timeout)
+            out.append(json.loads(m))
+        except (asyncio.TimeoutError, Exception):
+            break
+    return out
+
+
+async def _wait_for(ws, mtype, timeout=5.0, max_msgs=20):
+    """Read WS messages until one with given type arrives."""
+    for _ in range(max_msgs):
+        m = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
+        if m.get("type") == mtype:
+            return m
+    raise AssertionError(f"never received {mtype}")
+
+
+class TestWebrtcConfig:
+    def test_config_webrtc_returns_stun_and_turn(self, admin_session):
+        r = admin_session.get(f"{BASE_URL}/api/config/webrtc")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "iceServers" in data
+        servers = data["iceServers"]
+        assert isinstance(servers, list) and len(servers) >= 1
+        # STUN present
+        urls = [s.get("urls") for s in servers]
+        assert any(u and "stun:" in u for u in urls), f"missing STUN: {urls}"
+        # TURN present with creds (env has TURN_URL set)
+        turn = next((s for s in servers if s.get("urls", "").startswith("turn:")), None)
+        assert turn is not None, f"missing TURN entry: {servers}"
+        assert turn.get("username") == "openrelayproject"
+        assert turn.get("credential") == "openrelayproject"
+
+    def test_config_webrtc_requires_auth(self):
+        r = requests.get(f"{BASE_URL}/api/config/webrtc")
+        assert r.status_code in (401, 403), r.text
+
+
+class TestChatPersistenceAndYouTube:
+    """P1s for iteration 8: chat persistence + YouTube host controls."""
+
+    @staticmethod
+    def _new_room(admin_session, name="Iter8 YT Room"):
+        r = admin_session.post(f"{BASE_URL}/api/rooms", json={"name": name, "is_public": True})
+        assert r.status_code == 200, r.text
+        return r.json()["room_id"]
+
+    @staticmethod
+    async def _preadmit(viewer_user_id, room_id):
+        cli = AsyncIOMotorClient(MONGO_URL)
+        db = cli[DB_NAME]
+        await db.room_visits.update_one(
+            {"user_id": viewer_user_id, "room_id": room_id},
+            {"$set": {"user_id": viewer_user_id, "room_id": room_id}},
+            upsert=True,
+        )
+        cli.close()
+
+    @staticmethod
+    async def _clear_chat(room_id):
+        cli = AsyncIOMotorClient(MONGO_URL)
+        db = cli[DB_NAME]
+        await db.chat_messages.delete_many({"room_id": room_id})
+        cli.close()
+
+    def test_chat_persists_and_history_replayed(self, admin_session, viewer_session):
+        room_id = self._new_room(admin_session, "Iter8 Chat Room")
+
+        async def _flow():
+            await self._clear_chat(room_id)
+            # Admin (host) connects and sends 3 chat messages
+            admin_ws = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={admin_session.token}"
+            )
+            welcome = await _wait_for(admin_ws, "welcome")
+            assert welcome["is_host"] is True
+            assert welcome.get("mode") == "webrtc"
+            assert welcome.get("yt_video_id") is None
+
+            for text in ["hello-1", "hello-2", "hello-3"]:
+                await admin_ws.send(json.dumps({"type": "chat", "text": text}))
+            # Drain broadcasts (admin also receives its own chats)
+            msgs = await _drain(admin_ws, timeout=1.5)
+            chat_seen = [m for m in msgs if m.get("type") == "chat"]
+            assert len(chat_seen) >= 3, f"expected 3 chat broadcasts got: {chat_seen}"
+
+            # Verify persistence in Mongo
+            cli = AsyncIOMotorClient(MONGO_URL)
+            db = cli[DB_NAME]
+            stored = await db.chat_messages.find({"room_id": room_id}).sort("ts", 1).to_list(10)
+            cli.close()
+            assert len(stored) == 3, f"expected 3 persisted messages got {len(stored)}"
+            texts = [d["text"] for d in stored]
+            assert texts == ["hello-1", "hello-2", "hello-3"]
+            for d in stored:
+                assert set(["id", "room_id", "from", "name", "text", "ts"]).issubset(d.keys())
+
+            await admin_ws.close()
+
+            # Pre-admit viewer so it skips knock, then reconnect and expect chat_history
+            await self._preadmit(viewer_session.user_id, room_id)
+            viewer_ws = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={viewer_session.token}"
+            )
+            welcome_v = await _wait_for(viewer_ws, "welcome")
+            assert welcome_v["is_host"] is False
+            history_msg = await _wait_for(viewer_ws, "chat_history")
+            hist = history_msg.get("messages", [])
+            assert len(hist) == 3, f"chat_history expected 3 got {len(hist)}: {hist}"
+            assert [h["text"] for h in hist] == ["hello-1", "hello-2", "hello-3"]
+
+            await viewer_ws.close()
+
+        _run_async(_flow())
+
+    def test_yt_set_broadcast_and_state_remembered(self, admin_session, viewer_session):
+        room_id = self._new_room(admin_session, "Iter8 YT Set Room")
+        VID = "dQw4w9WgXcQ"
+
+        async def _flow():
+            await self._preadmit(viewer_session.user_id, room_id)
+            # Host connects first
+            host_ws = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={admin_session.token}"
+            )
+            await _wait_for(host_ws, "welcome")
+
+            # Viewer_A connects while host is present — should also receive yt_video broadcast later
+            viewer_ws = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={viewer_session.token}"
+            )
+            welcome_v = await _wait_for(viewer_ws, "welcome")
+            assert welcome_v.get("mode") == "webrtc"
+            assert welcome_v.get("yt_video_id") is None
+
+            # Host sets YT video
+            await host_ws.send(json.dumps({"type": "set_yt", "video_id": VID}))
+
+            # Viewer receives yt_video broadcast
+            yt_msg = await _wait_for(viewer_ws, "yt_video")
+            assert yt_msg.get("video_id") == VID
+            assert yt_msg.get("mode") == "youtube"
+
+            # Host also receives yt_video broadcast (broadcast without exclude)
+            yt_host = await _wait_for(host_ws, "yt_video")
+            assert yt_host.get("video_id") == VID
+
+            await viewer_ws.close()
+
+            # Fresh viewer joining now should get welcome with yt_video_id set
+            viewer_ws2 = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={viewer_session.token}"
+            )
+            welcome2 = await _wait_for(viewer_ws2, "welcome")
+            assert welcome2.get("yt_video_id") == VID, welcome2
+            assert welcome2.get("mode") == "youtube", welcome2
+            await viewer_ws2.close()
+
+            # Host clears (set_yt with null)
+            await host_ws.send(json.dumps({"type": "set_yt", "video_id": None}))
+            cleared = await _wait_for(host_ws, "yt_video")
+            assert cleared.get("video_id") is None
+            assert cleared.get("mode") == "webrtc"
+
+            # Fresh viewer join after clear -> mode webrtc, yt_video_id None
+            viewer_ws3 = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={viewer_session.token}"
+            )
+            welcome3 = await _wait_for(viewer_ws3, "welcome")
+            assert welcome3.get("yt_video_id") is None
+            assert welcome3.get("mode") == "webrtc"
+            await viewer_ws3.close()
+
+            await host_ws.close()
+
+            # Verify yt_set + yt_cleared events logged
+            events = admin_session.get(
+                f"{BASE_URL}/api/events", params={"room_id": room_id}
+            ).json()
+            types = [e.get("event_type") for e in events]
+            assert "yt_set" in types, types
+            assert "yt_cleared" in types, types
+
+        _run_async(_flow())
+
+    def test_non_host_set_yt_and_yt_state_ignored(self, admin_session, viewer_session):
+        room_id = self._new_room(admin_session, "Iter8 YT Non-Host Room")
+
+        async def _flow():
+            await self._preadmit(viewer_session.user_id, room_id)
+            # Host present
+            host_ws = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={admin_session.token}"
+            )
+            await _wait_for(host_ws, "welcome")
+            viewer_ws = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={viewer_session.token}"
+            )
+            await _wait_for(viewer_ws, "welcome")
+
+            # Non-host viewer attempts set_yt — should be ignored (no yt_video broadcast)
+            await viewer_ws.send(json.dumps({"type": "set_yt", "video_id": "abcdefghijk"}))
+            await viewer_ws.send(json.dumps({"type": "yt_state", "state": {"playing": True}}))
+
+            msgs_host = await _drain(host_ws, timeout=1.5)
+            for m in msgs_host:
+                assert m.get("type") not in ("yt_video", "yt_state"), (
+                    f"non-host action leaked: {m}"
+                )
+
+            # Room state must still be webrtc / null
+            cli = AsyncIOMotorClient(MONGO_URL)
+            db = cli[DB_NAME]
+            # No API to read ROOM_STATE (in-memory); check via a fresh join welcome
+            cli.close()
+            viewer_ws2_token = viewer_session.token
+            await viewer_ws.close()
+            # Re-open viewer WS -> welcome should show webrtc
+            viewer_ws2 = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={viewer_ws2_token}"
+            )
+            welcome = await _wait_for(viewer_ws2, "welcome")
+            assert welcome.get("mode") == "webrtc"
+            assert welcome.get("yt_video_id") is None
+            await viewer_ws2.close()
+            await host_ws.close()
+
+        _run_async(_flow())
+
+    def test_yt_state_broadcast_excludes_sender(self, admin_session, viewer_session):
+        room_id = self._new_room(admin_session, "Iter8 YT State Room")
+
+        async def _flow():
+            await self._preadmit(viewer_session.user_id, room_id)
+            host_ws = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={admin_session.token}"
+            )
+            await _wait_for(host_ws, "welcome")
+            viewer_ws = await websockets.connect(
+                f"{WS_BASE}/api/ws/room/{room_id}?token={viewer_session.token}"
+            )
+            await _wait_for(viewer_ws, "welcome")
+
+            state = {"playing": True, "currentTime": 12.5, "video_id": "dQw4w9WgXcQ"}
+            await host_ws.send(json.dumps({"type": "yt_state", "state": state}))
+
+            # Viewer should receive yt_state
+            got = await _wait_for(viewer_ws, "yt_state")
+            assert got.get("state", {}).get("currentTime") == 12.5
+            assert got.get("state", {}).get("playing") is True
+
+            # Host should NOT receive its own yt_state
+            host_msgs = await _drain(host_ws, timeout=1.0)
+            assert not any(m.get("type") == "yt_state" for m in host_msgs), host_msgs
+
+            await viewer_ws.close()
+            await host_ws.close()
+
+        _run_async(_flow())

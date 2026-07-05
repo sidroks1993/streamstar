@@ -258,6 +258,7 @@ async def on_startup():
     await db.notifications.create_index("created_at")
     await db.notifications.create_index("recipient_id")
     await db.room_visits.create_index([("user_id", 1), ("room_id", 1)], unique=True)
+    await db.chat_messages.create_index([("room_id", 1), ("ts", 1)])
     # Events collection with 7-day TTL. `created_at` must be a BSON date for TTL to work.
     try:
         await db.events.create_index("created_at", expireAfterSeconds=7 * 24 * 3600)
@@ -725,6 +726,22 @@ async def list_events(_: dict = Depends(require_super_admin), event_type: Option
             it["created_at"] = ca.isoformat()
     return items
 
+@api.get("/config/webrtc")
+async def webrtc_config(_: dict = Depends(get_current_user)):
+    """ICE server configuration. Returns Google STUN by default plus TURN if configured via env."""
+    servers: List[dict] = [{"urls": "stun:stun.l.google.com:19302"}]
+    turn_url = os.environ.get("TURN_URL")
+    if turn_url:
+        entry = {"urls": turn_url}
+        u = os.environ.get("TURN_USERNAME")
+        c = os.environ.get("TURN_CREDENTIAL")
+        if u:
+            entry["username"] = u
+        if c:
+            entry["credential"] = c
+        servers.append(entry)
+    return {"iceServers": servers}
+
 # ---------------- Rooms ----------------
 
 @api.post("/rooms", response_model=RoomOut)
@@ -790,8 +807,20 @@ ROOM_STATE: Dict[str, dict] = {}
 STREAM_STARTS: Dict[str, datetime] = {}
 
 def _muted(room_id: str) -> Set[str]:
-    st = ROOM_STATE.setdefault(room_id, {"muted": set()})
+    st = ROOM_STATE.setdefault(room_id, {"muted": set(), "yt_video_id": None, "mode": "webrtc"})
+    if "muted" not in st:
+        st["muted"] = set()
     return st["muted"]
+
+def _room_state(room_id: str) -> dict:
+    return ROOM_STATE.setdefault(room_id, {"muted": set(), "yt_video_id": None, "mode": "webrtc"})
+
+async def _load_chat_history(room_id: str, limit: int = 100) -> List[dict]:
+    items = await db.chat_messages.find(
+        {"room_id": room_id}, {"_id": 0}
+    ).sort("ts", -1).to_list(limit)
+    items.reverse()
+    return items
 
 async def _broadcast(room_id: str, message: dict, exclude: Optional[str] = None):
     participants = ROOMS.get(room_id, {})
@@ -969,6 +998,11 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
     ROOMS[room_id][user_id] = {"ws": websocket, "name": user.get("name") or "Guest", "is_host": is_host}
     await _log_event("participant_joined", actor=user, room=room)
 
+    # Load chat history for this admitted user (last 100 messages)
+    chat_history = await _load_chat_history(room_id, 100)
+
+    st = _room_state(room_id)
+
     # Tell the client its context
     await websocket.send_json({
         "type": "welcome",
@@ -979,7 +1013,12 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
         "participants": _participants_snapshot(room_id),
         "muted": list(_muted(room_id)),
         "pending": _pending_snapshot(room_id) if is_host else [],
+        "yt_video_id": st.get("yt_video_id"),
+        "mode": st.get("mode", "webrtc"),
     })
+    # Send chat history separately so the client can render it before live messages
+    if chat_history:
+        await websocket.send_json({"type": "chat_history", "messages": chat_history})
     # Notify others of the new participant
     await _broadcast(room_id, {
         "type": "participant_joined",
@@ -998,13 +1037,26 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
                 if user_id in _muted(room_id):
                     await websocket.send_json({"type": "chat_blocked", "reason": "You are muted by the host."})
                     continue
+                ts = datetime.now(timezone.utc).isoformat()
                 payload = {
                     "type": "chat",
                     "from": user_id,
                     "name": user.get("name"),
                     "text": text[:1000],
-                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "ts": ts,
                 }
+                # Persist to Mongo so late joiners see prior messages
+                try:
+                    await db.chat_messages.insert_one({
+                        "id": uuid.uuid4().hex[:12],
+                        "room_id": room_id,
+                        "from": user_id,
+                        "name": user.get("name"),
+                        "text": text[:1000],
+                        "ts": ts,
+                    })
+                except Exception as e:
+                    logger.warning(f"chat persist failed: {e}")
                 # Send to everyone including sender for consistent state
                 await _broadcast(room_id, payload)
             elif mtype == "reaction":
@@ -1144,10 +1196,28 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
                     "approved": bool(msg.get("approved")),
                 })
             elif mtype == "yt_state":
-                # Host broadcasts YouTube playback state (id, playing, currentTime)
+                # Host broadcasts YouTube playback state (playing, currentTime)
                 if not is_host:
                     continue
                 await _broadcast(room_id, {"type": "yt_state", "state": msg.get("state")}, exclude=user_id)
+            elif mtype == "set_yt":
+                # Host switches the room into YouTube mode with a video id
+                if not is_host:
+                    continue
+                vid = msg.get("video_id") or None
+                st = _room_state(room_id)
+                if vid:
+                    st["yt_video_id"] = vid
+                    st["mode"] = "youtube"
+                else:
+                    st["yt_video_id"] = None
+                    st["mode"] = "webrtc"
+                await _log_event("yt_set" if vid else "yt_cleared", actor=user, room=room, meta={"video_id": vid})
+                await _broadcast(room_id, {
+                    "type": "yt_video",
+                    "video_id": st["yt_video_id"],
+                    "mode": st["mode"],
+                })
             else:
                 # Unknown -> ignore
                 pass

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="17" time="8.362" timestamp="2026-07-05T18:43:41.754327+00:00" hostname="agent-env-b2ad357f-66bc-454a-b8d6-29736f8f2ae8"><testcase classname="tests.backend_test.TestNotifications" name="test_events_requires_admin" time="1.199" /><testcase classname="tests.backend_test.TestChatPersistenceAndYouTube" name="test_chat_persists_and_history_replayed" time="3.016" /><testcase classname="tests.backend_test.TestNotifications" name="test_events_admin_ok" time="0.583" /><testcase classname="tests.backend_test.TestNotifications" name="test_notifications_me_returns_list" time="0.056" /><testcase classname="tests.backend_test.TestNotifications" name="test_grant_host_creates_notification_and_event" time="0.443" /><testcase classname="tests.backend_test.TestRoomsCodeVisibility" name="test_admin_sees_all_codes_and_superadmin_room_exists" time="0.056" /><testcase classname="tests.backend_test.TestRoomsCodeVisibility" name="test_viewer_sees_null_codes" time="0.045" /><testcase classname="tests.backend_test.TestRoomsCodeVisibility" name="test_viewer_sees_code_after_room_visit_upsert" time="0.100" /><testcase classname="tests.backend_test.TestAuth" name="test_admin_login" time="0.045" /><testcase classname="tests.backend_test.TestAuth" name="test_viewer_register" time="0.045" /><testcase classname="tests.backend_test.TestKnockFlow" name="test_admin_welcome_and_viewer_pending_then_admit" time="3.410"><failure message="AssertionError: admin never got join_request&#10;assert False">tests/backend_test.py:277: in test_admin_welcome_and_viewer_pending_then_admit
+    _run_async(_flow())
+tests/backend_test.py:42: in _run_async
+    return asyncio.run(coro)
+           ^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/backend_test.py:249: in _flow
+    assert got_join_request, "admin never got join_request"
+E   AssertionError: admin never got join_request
+E   assert False</failure></testcase><testcase classname="tests.backend_test.TestChatPersistenceAndYouTube" name="test_yt_set_broadcast_and_state_remembered" time="0.895" /><testcase classname="tests.backend_test.TestChatPersistenceAndYouTube" name="test_non_host_set_yt_and_yt_state_ignored" time="2.180" /><testcase classname="tests.backend_test.TestKnockFlow" name="test_viewer_denied_flow" time="0.443" /><testcase classname="tests.backend_test.TestChatPersistenceAndYouTube" name="test_yt_state_broadcast_excludes_sender" time="1.460" /><testcase classname="tests.backend_test.TestWebrtcConfig" name="test_config_webrtc_returns_stun_and_turn" time="0.046" /><testcase classname="tests.backend_test.TestWebrtcConfig" name="test_config_webrtc_requires_auth" time="0.099" /></testsuite></testsuites>
