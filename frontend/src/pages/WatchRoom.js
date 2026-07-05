@@ -145,7 +145,7 @@ export default function WatchRoom() {
           setAdmission("denied");
           break;
         case "join_request":
-          // Host receives a knock — add to pending list
+          // Host receives a knock — add to pending list AND play a subtle doorknock sound
           if (msg.pending) {
             setPendingGuests(msg.pending);
           } else if (msg.user) {
@@ -154,6 +154,7 @@ export default function WatchRoom() {
               return [...prev, msg.user];
             });
           }
+          playKnockSound();
           toast(`${msg.user?.name || "Someone"} is knocking to join`);
           break;
         case "pending_update":
@@ -391,6 +392,55 @@ export default function WatchRoom() {
   const muteToggle = (targetId, mute) => {
     send({ type: "host_mute", target: targetId, mute });
   };
+
+  // Subtle synthesized doorknock played on host/super-admin browser via Web Audio API.
+  // Zero-asset (no mp3 fetch), works under strict CSP; two low thumps ~140ms apart.
+  const knockAudioRef = useRef(null);
+  const playKnockSound = useCallback(() => {
+    try {
+      let ctx = knockAudioRef.current;
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        ctx = new AC();
+        knockAudioRef.current = ctx;
+      }
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const now = ctx.currentTime;
+      [0, 0.14].forEach((offset) => {
+        const t = now + offset;
+        // Low wood thump
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(55, t + 0.09);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.28, t + 0.006);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.16);
+        // Filtered noise "click" attack
+        const bufSz = Math.floor(ctx.sampleRate * 0.05);
+        const buf = ctx.createBuffer(1, bufSz, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufSz; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / bufSz);
+        const n = ctx.createBufferSource();
+        n.buffer = buf;
+        const ng = ctx.createGain();
+        const f = ctx.createBiquadFilter();
+        f.type = "bandpass";
+        f.frequency.value = 900;
+        f.Q.value = 0.7;
+        ng.gain.setValueAtTime(0.14, t);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+        n.connect(f).connect(ng).connect(ctx.destination);
+        n.start(t);
+        n.stop(t + 0.05);
+      });
+    } catch { /* ignore audio errors */ }
+  }, []);
 
   const respondKnock = (targetId, approved) => {
     send({ type: "join_response", target: targetId, approved });

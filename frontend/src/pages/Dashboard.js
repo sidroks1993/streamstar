@@ -393,6 +393,29 @@ export default function Dashboard() {
                 Refresh
               </button>
             </div>
+
+            {/* Always-visible "Create a room" CTA inline in the Public rooms section */}
+            <div
+              className="rounded-xl border border-dashed border-[#A855F7]/30 bg-gradient-to-br from-[#A855F7]/5 to-[#EC4899]/5 p-5 mb-4 flex items-center justify-between gap-4"
+              data-testid="create-room-cta"
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-white">Want to open your own watch party?</div>
+                <div className="text-xs text-white/50 mt-1">
+                  {canHost
+                    ? "Spin up a new public room — anyone with the link can join."
+                    : "We'll ping the SuperAdmin the moment you click and let you know when you're approved."}
+                </div>
+              </div>
+              <Button
+                onClick={() => (canHost ? setOpen(true) : (setReqOpen(true), !reqStatus && requestHost()))}
+                className="ss-shimmer bg-gradient-to-r from-[#A855F7] to-[#EC4899] hover:opacity-90 text-white shrink-0"
+                data-testid="public-create-room-btn"
+              >
+                <Sparkles className="w-4 h-4 mr-2" /> Create a room
+              </Button>
+            </div>
+
             {publicRooms.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/10 bg-[#0A0A0A] p-12 text-center" data-testid="public-rooms-empty">
                 <Film className="w-8 h-8 text-white/20 mx-auto mb-3" />

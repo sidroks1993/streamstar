@@ -1,0 +1,32 @@
+{
+  "summary": "Iter 15 verified. Backend host-request flow: POST /api/host-requests creates pending row + host_request broadcast notification for super_admin; second call returns same pending; 60s auto-approve promotes viewer to host and emits host_granted notification. Frontend: 'Create a room' CTA (create-room-cta) visible in Public rooms with role-differentiated caption. Non-host clicks fire POST /api/host-requests, open request-host-dialog showing exactly 'Requested to SuperAdmin for hosting. You'll be notified the moment it's approved.' — no '60 seconds' or 'auto-approve' copy. Header 'New watch room' button behaves identically (auto-fires on dialog open). Super-admin clicking the CTA opens the create-room dialog and does NOT fire host-requests. Static code review of WatchRoom.js confirms playKnockSound: feature-detected (window.AudioContext || webkitAudioContext), try/catch wrapped, AudioContext cached in knockAudioRef.current, resumed if suspended, invoked from join_request WS handler (line 157). Iter 7 knock-flow tests already validated join_request WS message delivery.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results": {
+    "backend_host_request_pending_and_broadcast": "PASS",
+    "backend_host_request_idempotent_pending": "PASS",
+    "backend_host_request_60s_auto_approve": "PASS (67s)",
+    "frontend_nonhost_cta_visible_and_caption": "PASS ('ping the SuperAdmin')",
+    "frontend_nonhost_public_cta_click_autofires_host_request": "PASS (1 POST observed)",
+    "frontend_nonhost_pending_copy_no_60s_or_autoapprove": "PASS",
+    "frontend_nonhost_header_create_room_btn_opens_request_dialog": "PASS",
+    "frontend_host_cta_visible_and_caption": "PASS ('Spin up a new public room')",
+    "frontend_host_cta_opens_create_room_dialog_no_host_request_post": "PASS (0 POSTs)",
+    "watchroom_playKnockSound_static_review": "PASS (feature detect + try/catch + cached ctx + resume + wired to join_request)"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_host_request.py",
+    "/app/test_reports/pytest/iter15_hr.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend POST /api/host-requests response body still includes `auto_approve_at`. Spec says frontend already ignores it, but if you want fully user-invisible timing, consider removing this field from the API response too."
+  ],
+  "updated_files": ["/app/backend/tests/test_host_request.py"],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100%"},
+  "test_credentials": "sidroks@hotmail.com / streamstar@1 (super_admin); viewer_selftest_1783276117@example.com / viewer1234 (non-host, email_verified)",
+  "seed_data_creation": "Ephemeral iter15_hr_* viewers created + cleaned per-test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 15 complete: host-request flow, public-create-room-btn CTA, and playKnockSound wiring all verified. Doorknock audio was verified statically per instructions (Playwright can't capture Web Audio output)."
+}
