@@ -16,18 +16,31 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [needsVerify, setNeedsVerify] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setNeedsVerify(false);
     try {
       await login(email, password);
       toast.success("Welcome back");
       navigate("/dashboard");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail) || "Login failed");
+      const msg = formatApiError(err.response?.data?.detail) || "Login failed";
+      toast.error(msg);
+      if (err.response?.status === 403 && /verify/i.test(msg)) setNeedsVerify(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    try {
+      await (await import("../lib/api")).default.post("/auth/resend-verification", { email });
+      toast.success("Verification email sent again — check inbox and spam");
+    } catch {
+      toast.error("Could not resend right now");
     }
   };
 
@@ -70,6 +83,14 @@ export default function Login() {
           <Button type="submit" disabled={loading} className="w-full bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="login-submit">
             {loading ? "Signing in…" : "Sign in"}
           </Button>
+          {needsVerify && (
+            <div className="rounded-md border border-[#A855F7]/40 bg-[#A855F7]/10 p-3 text-sm text-white/90 space-y-2" data-testid="verify-banner">
+              <div>Your email isn&apos;t verified yet. Check your inbox (and spam folder).</div>
+              <button type="button" onClick={resendVerification} className="text-[#A855F7] hover:text-[#C026D3] underline text-xs" data-testid="resend-verify-btn">
+                Resend verification email
+              </button>
+            </div>
+          )}
         </form>
 
         <div className="flex items-center gap-4 my-6">

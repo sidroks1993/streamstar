@@ -334,6 +334,26 @@ async def logout(response: Response, request: Request):
     response.delete_cookie("session_token", path="/")
     return {"ok": True}
 
+class ResendVerifyIn(BaseModel):
+    email: EmailStr
+
+@api.post("/auth/resend-verification")
+async def resend_verification(body: ResendVerifyIn):
+    email = body.email.lower().strip()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    # Always return ok to avoid enumeration
+    if user and not user.get("email_verified", True) and RESEND_API_KEY and APP_BASE_URL:
+        token = user.get("verify_token") or uuid.uuid4().hex
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"verify_token": token}})
+        link = f"{APP_BASE_URL}/verify?token={token}"
+        html = _email_template(
+            "Confirm your email",
+            f"Hi {user.get('name','there')}, please confirm your email to unlock StreamStar rooms and HD recording.",
+            link, "Verify my email",
+        )
+        asyncio.create_task(_send_mail(email, "Confirm your StreamStar email", html))
+    return {"ok": True}
+
 @api.get("/auth/verify")
 async def verify_email(token: str):
     user = await db.users.find_one({"verify_token": token}, {"_id": 0})
