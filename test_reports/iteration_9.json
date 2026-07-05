@@ -1,0 +1,33 @@
+{
+  "summary": "Iter 17 host-disconnect teardown verified end-to-end. New pytest /app/backend/tests/test_host_disconnect.py exercises real dual-WebSocket flow against the deployed backend and asserts: (a) viewer receives host_left {host_name} then closes 4404 when host WS drops, (b) ROOMS/PENDING/ROOM_STATE/STREAM_STARTS are cleared (proven by host reconnect getting fresh welcome with yt_video_id=null, mode='webrtc' after previously setting yt mode), (c) db.events contains host_left with matching actor_id+room_id, (d) db.rooms doc for the room is preserved (host can reopen), (e) regression: viewer disconnect only fires participant_left and host WS remains alive, (f) frontend WatchRoom.js switch cases 'host_left' and 'room_closed' exist and both navigate to /dashboard. All 3 new tests PASS. Existing test_host_request + test_invites suites still green (15 passed).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_host_disconnect.py",
+    "/app/test_reports/pytest/iter17.xml"
+  ],
+  "action_items": [
+    "Pre-existing (NOT introduced this iter): /app/backend/tests/test_iter16_no_upload_leak.py uses r.json()['access_token'] but /api/auth/login does not return access_token in the JSON body (only sets it as HttpOnly cookie via _set_cookie). All 3 tests in that file error/fail with KeyError. Main agent should either (i) update _login helper in test_iter16 to pull the cookie via session.cookies.get('access_token'), or (ii) add access_token to UserOut response. Not blocking iter 17 sign-off."
+  ],
+  "critical_code_review_comments": [
+    "server.py:1389-1426 finally block correctly resets ROOMS/PENDING/ROOM_STATE/STREAM_STARTS for host disconnect and logs host_left + stream_ended events. Non-host branch preserves room state. Verified live.",
+    "server.py:638 _log_event stores under field name event_type (not type) — tests must query accordingly. Consistent with rest of code.",
+    "WatchRoom.js:279-286 both host_left and room_closed cases present, both navigate to /dashboard with toasts."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_host_disconnect.py (new)"
+  ],
+  "success_rate": {"backend": "100% (3/3 new + 15/15 regression)", "frontend": "static check pass"},
+  "test_credentials": "super_admin sidroks@hotmail.com/streamstar@1; viewer viewer_selftest_1783276117@example.com/viewer1234",
+  "seed_data_creation": "Upserted db.room_visits {viewer_user_id, SuperAdmin Room room_id} to guarantee auto-admit (bypasses knock queue) for the viewer WS.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login endpoint /api/auth/login does NOT return access_token in JSON body — only sets HttpOnly cookie. Extract via session.cookies.get('access_token') or requests.Session cookiejar. For WS connect: wss://{host}/api/ws/room/{room_id}?token=<access_token>. _log_event writes field 'event_type' not 'type' in db.events. To bypass knock queue for viewer WS auto-admit, upsert db.room_visits {user_id, room_id}."
+}

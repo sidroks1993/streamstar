@@ -276,6 +276,14 @@ export default function WatchRoom() {
           toast.error("You were removed from the room by the host");
           setTimeout(() => navigate("/dashboard"), 800);
           break;
+        case "host_left":
+          toast(`${msg.host_name || "The host"} left — the stream has ended.`, { duration: 3500 });
+          setTimeout(() => navigate("/dashboard"), 1200);
+          break;
+        case "room_closed":
+          toast.error(`Room closed${msg.by ? ` by ${msg.by}` : ""}`);
+          setTimeout(() => navigate("/dashboard"), 900);
+          break;
         default:
           break;
       }

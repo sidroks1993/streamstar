@@ -1395,11 +1395,35 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
                 await _log_event("stream_ended", actor=user, room=room, meta={"duration_ms": duration_ms, "reason": "host_disconnect"})
         ROOMS.get(room_id, {}).pop(user_id, None)
         await _log_event("participant_left", actor=user, room=room)
-        await _broadcast(room_id, {
-            "type": "participant_left",
-            "user_id": user_id,
-            "participants": _participants_snapshot(room_id),
-        })
+
+        # If the HOST leaves, the room's stream can't continue — end the session for everyone.
+        # Kick all remaining viewers, clear pending knocks, and reset per-room state (YouTube mode etc.).
+        if is_host:
+            remaining = list(ROOMS.get(room_id, {}).items())
+            for uid, p in remaining:
+                try:
+                    await p["ws"].send_json({"type": "host_left", "host_name": user.get("name")})
+                    await p["ws"].close(code=4404)
+                except Exception:
+                    pass
+            ROOMS.pop(room_id, None)
+            pending = list(PENDING.get(room_id, {}).items())
+            for uid, p in pending:
+                try:
+                    await p["ws"].send_json({"type": "admission_denied", "reason": "Host left the room"})
+                    await p["ws"].close(code=4404)
+                except Exception:
+                    pass
+            PENDING.pop(room_id, None)
+            ROOM_STATE.pop(room_id, None)
+            STREAM_STARTS.pop(room_id, None)
+            await _log_event("host_left", actor=user, room=room)
+        else:
+            await _broadcast(room_id, {
+                "type": "participant_left",
+                "user_id": user_id,
+                "participants": _participants_snapshot(room_id),
+            })
 
 # ---------------- Health ----------------
 
