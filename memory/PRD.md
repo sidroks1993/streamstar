@@ -107,6 +107,17 @@
 - ✅ **Unified "New watch room" button** for everyone. When a non-host clicks it, the dialog auto-fires the host request on open — user just sees "Requested to SuperAdmin for hosting. You'll be notified the moment it's approved." with no mention of the 60-second auto-approve algorithm. When the approval arrives (manually or silently after 60s), the notification bell + auto-refresh brings the user's role up-to-date and the button starts opening the create-room dialog instead.
 - ✅ **Enlarged glowing navbar branding**: 40px mark inside a pulsing purple/pink drop-shadow ring (4s cycle), 24–26px wordmark with a gradient "Star" and text-glow. Navbar height bumped from `h-16` → `h-20`. Data-testid `nav-logo` on the link, `.ss-nav-logo-mark` and `.ss-nav-wordmark` classes for verification.
 
+## Iteration 17 (2026-02-05)
+- ✅ **Host disconnect ends the stream** — no more "permanently open" rooms. When the host/super-admin WebSocket closes, backend now:
+  - Broadcasts `host_left {host_name}` to every remaining participant, then closes each socket with code 4404
+  - Broadcasts `admission_denied {reason:'Host left the room'}` to every pending knocker, then closes their sockets
+  - Pops `ROOMS[room_id]`, `PENDING[room_id]`, `ROOM_STATE[room_id]`, `STREAM_STARTS[room_id]`
+  - Logs a `host_left` event (plus `stream_ended` with `reason: host_disconnect` if the host was streaming)
+  - Preserves the DB room doc so the host can reopen the room later
+- ✅ **Frontend `host_left` + `room_closed` handling** — WatchRoom's WS handler shows a friendly toast and navigates back to `/dashboard`.
+- ✅ **Regression**: Viewer disconnect is unchanged — only `participant_left` broadcasts; room state stays intact.
+- **Testing (iter_9 report, 100% PASS)**: 3 new pytest scenarios + 15 regressions green.
+
 ## Prioritized Backlog
 ### P0 (blocking, none)
 _None_

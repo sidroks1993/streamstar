@@ -181,8 +181,7 @@ class TestHostDisconnect:
         room_doc = cli[DB_NAME].rooms.find_one({"room_id": room_id})
         assert room_doc is not None, "room DB doc was deleted; should be preserved"
 
-        # 2) host_left event logged in the last ~30s for this room by admin
-        cutoff = time.time() - 60
+        # 2) host_left event logged in db.events for this room by admin
         host_left_events = list(cli[DB_NAME].events.find({
             "event_type": "host_left",
             "room_id": room_id,
