@@ -1,0 +1,135 @@
+{
+  "project_name": "CineSync",
+  "theme": "dark",
+  "archetype": "5 (Luxury / Cinematic Noir)",
+  "vibe": "Cinematic, immersive, theatrical. 'A theater with the lights down.' UI gets out of the way to let content shine.",
+  "typography": {
+    "fonts": {
+      "headings": "Outfit",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "scale": {
+      "h1": "text-5xl sm:text-6xl tracking-tighter font-medium",
+      "h2": "text-3xl sm:text-4xl tracking-tight font-medium",
+      "h3": "text-xl sm:text-2xl tracking-tight font-medium",
+      "h4": "text-lg font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm tracking-wide",
+      "overline": "text-xs uppercase tracking-[0.2em] font-bold"
+    },
+    "rules": [
+      "Never use pure white text. Use #EDEDED or #F5F5F5 for primary text.",
+      "Always apply tight tracking (tracking-tight) to headings.",
+      "Headings use 'Outfit', Body text uses 'Manrope'. Verify via Google Fonts."
+    ]
+  },
+  "colors": {
+    "background": "#050505",
+    "surface": "#111111",
+    "surface_hover": "#1A1A1A",
+    "surface_active": "#222222",
+    "border": "rgba(255, 255, 255, 0.1)",
+    "border_strong": "rgba(255, 255, 255, 0.2)",
+    "primary": "#E50914",
+    "primary_hover": "#F40612",
+    "text_primary": "#F5F5F5",
+    "text_secondary": "#A3A3A3",
+    "text_muted": "#737373",
+    "success": "#10B981",
+    "warning": "#F5C518",
+    "error": "#EF4444"
+  },
+  "surfaces_and_materials": {
+    "dashboard_cards": {
+      "background": "bg-[#111111]",
+      "border": "border border-white/10",
+      "radius": "rounded-xl",
+      "shadow": "shadow-none"
+    },
+    "video_player_controls": {
+      "background": "bg-black/60",
+      "backdrop": "backdrop-blur-2xl backdrop-saturate-150",
+      "border": "border-t border-white/10",
+      "radius": "rounded-none"
+    },
+    "chat_sidebar": {
+      "background": "bg-[#0A0A0A]",
+      "border": "border-l border-white/10",
+      "radius": "rounded-none"
+    },
+    "floating_menus": {
+      "background": "bg-[#161616]/90",
+      "backdrop": "backdrop-blur-xl",
+      "border": "border border-white/10",
+      "radius": "rounded-lg"
+    }
+  },
+  "spacing_and_layout": {
+    "container": "max-w-7xl mx-auto px-6 lg:px-12",
+    "section_gap": "py-24",
+    "bento_grid": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+    "watch_room_layout": "flex h-screen w-full overflow-hidden bg-black",
+    "rules": [
+      "Generous Spacing Philosophy: Dashboard padding should be p-8 or p-10 to feel premium.",
+      "Containers with borders MUST have internal padding.",
+      "No jagged bottoms in bento grids. Use h-full on children.",
+      "The Watch Room should be a 100vh flex container. Video takes flex-1 (with relative positioning), Chat sidebar is fixed width (w-80 or w-96)."
+    ]
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#E50914] text-white hover:bg-[#F40612] font-medium px-6 py-3 rounded-md transition-colors data-testid",
+      "secondary": "bg-white/10 text-white hover:bg-white/20 font-medium px-6 py-3 rounded-md transition-colors data-testid",
+      "ghost": "bg-transparent text-white/70 hover:text-white hover:bg-white/5 font-medium px-4 py-2 rounded-md transition-colors data-testid",
+      "icon": "p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+    },
+    "video_player": {
+      "wrapper": "relative w-full h-full bg-black flex items-center justify-center group",
+      "video_element": "max-h-full max-w-full object-contain",
+      "controls_overlay": "absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2",
+      "progress_bar": "w-full h-1 bg-white/20 rounded-full cursor-pointer hover:h-2 transition-all duration-200",
+      "progress_fill": "h-full bg-[#E50914] rounded-full"
+    },
+    "chat_message": {
+      "container": "flex flex-col gap-1 mb-4",
+      "sender_name": "text-xs text-white/50",
+      "bubble_self": "bg-[#E50914]/20 text-[#F5F5F5] rounded-2xl rounded-tr-sm px-4 py-2 text-sm w-fit self-end border border-[#E50914]/30",
+      "bubble_other": "bg-white/10 text-[#F5F5F5] rounded-2xl rounded-tl-sm px-4 py-2 text-sm w-fit self-start"
+    },
+    "inputs": {
+      "default": "bg-black/50 border border-white/10 rounded-md px-4 py-2 text-white focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all placeholder:text-white/30"
+    }
+  },
+  "media": {
+    "images": {
+      "hero_background": {
+        "url": "https://images.pexels.com/photos/18501410/pexels-photo-18501410.jpeg",
+        "description": "Empty cinematic theater with red seats. Use for the landing page hero section background with a heavy black/gradient overlay (bg-black/70 or heavier) to ensure text readability."
+      },
+      "dashboard_texture": {
+        "url": "https://images.unsplash.com/photo-1532190872407-280735d27e08",
+        "description": "Abstract dark lighting texture. Use as a very low opacity (10%) background image in the admin dashboard for a premium textured feel."
+      }
+    },
+    "icons": "lucide-react (Use standard lucide icons for player controls like Play, Pause, Maximize, Settings, Volume, Mic, Video)"
+  },
+  "motion_and_interaction": {
+    "hover": "All interactive elements must shift visually. Buttons slightly scale (active:scale-95).",
+    "video_controls": "Controls overlay must fade out after 3 seconds of mouse inactivity. Fade in immediately on mousemove.",
+    "page_transitions": "Use subtle fade-ins for route changes.",
+    "chat": "New messages should slide up (translate-y-2 to 0) and fade in."
+  },
+  "instructions_to_main_agent": {
+    "1": "Use ONLY .js files for React components (JSX), not .tsx files. You are building a React + Tailwind + Vite/FastAPI hybrid_fullstack app.",
+    "2": "Apply the 'dark' class to the html/body or root div to enforce dark mode globally. Set global body background to #050505.",
+    "3": "Load the Google Fonts 'Outfit' and 'Manrope' in the index.html or global CSS.",
+    "4": "Build a Custom Video Player component that wraps the HTML5 video element. Do not use default HTML5 controls. Implement custom controls as styled in 'video_player' guidelines.",
+    "5": "The Watch Room layout should completely hide the global Navbar/Footer. It must be an immersive fullscreen experience.",
+    "6": "Add data-testid attributes to all buttons, inputs, and interactive elements (e.g., data-testid='play-button', data-testid='chat-input').",
+    "7": "Use Shadcn components for complex UI like Dropdowns (for Quality/Speed settings), Dialogs (for Invite Link sharing), and Slider (for Volume and Seek).",
+    "8": "WebRTC logic: The host streams the media. Ensure UI clearly shows who the Host is. Only the host should be able to seek or change the video source.",
+    "9": "Avoid generic purple/teal gradients. Stick to the cinematic dark void with Crimson/Red accents.",
+    "10": "For the landing page, overlay the hero image with 'bg-gradient-to-b from-black/80 via-black/60 to-[#050505]' to blend seamlessly into the dark page body."
+  }
+}
