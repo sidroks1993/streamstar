@@ -7,7 +7,7 @@ import YouTubePlayer, { parseYouTubeId } from "../components/YouTubePlayer";
 import ChatPanel from "../components/ChatPanel";
 import { ReactionsOverlay, ReactionPicker } from "../components/Reactions";
 import { toast } from "sonner";
-import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square, Share2, Mail, MessageCircle, DoorOpen, Check, X, Loader2, Youtube } from "lucide-react";
+import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square, Share2, Mail, MessageCircle, DoorOpen, Check, X, Loader2, Youtube, Sparkles, Zap } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
@@ -58,6 +58,30 @@ export default function WatchRoom() {
     })();
   }, []);
 
+  // Redeem a one-tap invite token if the URL has `?invite=...` — pre-admits the current user
+  // so the WS handler auto-admits them instead of routing to the knock queue.
+  const [inviteRedeemed, setInviteRedeemed] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("invite");
+    if (!token) { setInviteRedeemed(true); return; }
+    (async () => {
+      try {
+        await api.post("/invites/accept", { token });
+        toast.success("Invite accepted — you'll walk right in.");
+      } catch (e) {
+        const msg = formatApiError(e.response?.data?.detail) || "Invite could not be redeemed";
+        toast.error(msg);
+      } finally {
+        // Strip the token from the URL so refresh/copy-paste of the current URL doesn't re-send it
+        params.delete("invite");
+        const qs = params.toString();
+        window.history.replaceState({}, "", `/watch/${roomId}${qs ? `?${qs}` : ""}`);
+        setInviteRedeemed(true);
+      }
+    })();
+  }, [roomId]);
+
   // Load room details
   useEffect(() => {
     (async () => {
@@ -95,7 +119,7 @@ export default function WatchRoom() {
 
   // Connect WebSocket
   useEffect(() => {
-    if (!room || !wsToken) return;
+    if (!room || !wsToken || !inviteRedeemed) return;
     const url = `${wsUrl()}?token=${encodeURIComponent(wsToken)}`;
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -400,6 +424,25 @@ export default function WatchRoom() {
     send({ type: "yt_state", state });
   };
 
+  // One-tap invite: host generates a signed 15-min URL others can use to bypass the knock queue.
+  const [oneTapInvite, setOneTapInvite] = useState(null); // { url, expires_at } | null
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const generateOneTap = async () => {
+    setInviteBusy(true);
+    try {
+      const { data } = await api.post(`/rooms/${roomId}/invites`);
+      // Prefer window origin so the URL points at the public app, not the internal cluster host
+      const url = `${window.location.origin}/watch/${roomId}?invite=${encodeURIComponent(data.invite_token)}`;
+      setOneTapInvite({ url, expires_at: data.expires_at });
+      await navigator.clipboard.writeText(url);
+      toast.success("One-tap invite copied — valid for 15 minutes");
+    } catch (e) {
+      toast.error(formatApiError(e.response?.data?.detail) || "Couldn't create invite");
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
   const toggleRecording = () => {
     // Host: local recording of own stream. Viewer: ask host first.
     if (!isHost) {
@@ -661,6 +704,49 @@ export default function WatchRoom() {
                 </Button>
               </a>
             </div>
+
+            {/* One-tap VIP invite — host only */}
+            {isHost && (
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-3.5 h-3.5 text-[#EC4899]" />
+                  <div className="text-xs uppercase tracking-widest text-white/70">One-tap VIP invite</div>
+                </div>
+                <p className="text-[11px] text-white/50 leading-relaxed mb-3">
+                  Skip the knock queue. The link lets one friend walk right in — valid for 15 minutes, single-use per person, works even for brand-new sign-ups.
+                </p>
+                {oneTapInvite ? (
+                  <div className="rounded-md border border-[#EC4899]/30 bg-[#EC4899]/5 p-3 space-y-2" data-testid="onetap-invite-result">
+                    <input
+                      readOnly
+                      value={oneTapInvite.url}
+                      className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-[11px] text-white/80 font-mono truncate"
+                      onFocus={(e) => e.target.select()}
+                      data-testid="onetap-invite-url"
+                    />
+                    <div className="flex items-center justify-between text-[10px] text-white/50 uppercase tracking-widest">
+                      <span>Expires {new Date(oneTapInvite.expires_at).toLocaleTimeString()}</span>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(oneTapInvite.url); toast.success("Copied again"); }}
+                        className="hover:text-white flex items-center gap-1"
+                        data-testid="onetap-invite-copy"
+                      >
+                        <Copy className="w-3 h-3" /> Copy
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={generateOneTap}
+                    disabled={inviteBusy}
+                    className="w-full bg-gradient-to-r from-[#EC4899] to-[#A855F7] hover:opacity-90 text-white disabled:opacity-60"
+                    data-testid="onetap-invite-btn"
+                  >
+                    <Zap className="w-4 h-4 mr-2" /> {inviteBusy ? "Generating…" : "Generate one-tap invite"}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

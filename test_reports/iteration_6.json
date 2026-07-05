@@ -1,0 +1,35 @@
+{
+  "summary": "Iter 9+10 combined validation. Backend: 13/13 new tests PASS covering create_invite (host/non-host/404), accept_invite (happy + expired 410 + malformed 400 + wrong typ 400 + deleted room 404 + room_visits upsert with admitted_via='invite' + host notification 'invite_accepted' + events log), WS auto-admit after invite (welcome, not pending_admission), and legacy /notifications + /notifications/mark-read aliases (admin-only, delegate to /me variants). Frontend: verified anonymous /watch/<id> -> /register?next=%2Fwatch%2F<id> with invite-banner; Sign-in-instead link -> /login?next=... with invite-banner-login; admin panel all-rooms-table renders 16 rows with admin-room-code/link/open testids; WatchRoom fires GET /api/config/webrtc on mount (2 calls observed — fine); host-only 'One-tap VIP invite' section visible in Invite dialog with onetap-invite-btn/url/copy; clicking generates POST /api/rooms/{id}/invites and displays the full https://.../watch/<id>?invite=<jwt> URL plus expiry time.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "WatchRoom mount", "issue": "A red toast 'Something went wrong. Please try again.' appears on room load in screenshot — not blocking invite dialog. Likely an unrelated fetch failing (chat_history / participants). Should be triaged but does not block iter 9/10 functionality.", "affected_selectors": ["toast error"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_invites.py",
+    "/app/test_reports/pytest/iter9_10.xml"
+  ],
+  "action_items": [
+    "Investigate the transient 'Something went wrong. Please try again.' toast that fires on WatchRoom mount (visible in screenshot) — check WatchRoom.js catch blocks around chat_history / initial fetch. Non-blocking but user-visible."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~1335 lines. Continue modularizing (auth, rooms, ws, notifications, events, invites).",
+    "accept_invite handler: order of jwt exception handling is correct (ExpiredSignatureError before PyJWTError). Good.",
+    "create_invite uses request.base_url for origin fallback — if the app sits behind an odd ingress this could produce internal URLs. PUBLIC_APP_URL env override is present, which is fine.",
+    "Invite tokens carry iss_uid but there's no server-side check that the issuer still exists / still owns the room at accept time. Minor: if a host loses can_host or the room is transferred, prior invites still work until expiry. Acceptable given 15-min TTL.",
+    "Legacy /notifications and /notifications/mark-read still require super_admin, but they now delegate to /me variants which are per-user. Semantics preserved for admin; for non-admin they still 403 (correct). Consider dropping these entirely in a future release."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_invites.py (new file, 13 tests)"
+  ],
+  "success_rate": {"backend": "100% (13/13 iter9+10 tests)", "frontend": "100% for iter 9/10 verified flows (invite gate, all-rooms-table, /config/webrtc fetch, one-tap invite dialog)"},
+  "test_credentials": "sidroks@hotmail.com / streamstar@1 verified. Test-created ephemeral users via _register_verified() helper (email pattern invite_*_<hex>@example.com, force-verified in Mongo).",
+  "seed_data_creation": "New 'Invite Test Room' watch room created via admin POST /api/rooms during pytest module setup. Also created ~3 ephemeral verified users per run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 9+10 fully green. Frontend one-tap invite dialog present and firing POST /rooms/{id}/invites; token/url/expiry displayed. Anonymous invite gate flow (register-first + sign-in-instead) works. /api/config/webrtc is now called on WatchRoom mount (2 requests observed — fine, likely React StrictMode). Legacy notification endpoints kept but marked deprecated. Only outstanding item is an unrelated red toast on WatchRoom load that main agent should triage.",
+  "rca of the issue": "N/A — no blocking issues found. Test failures during initial pytest run were both test-side: (1) events schema uses actor_id (flat) not nested actor.user_id; (2) parallel xdist workers were creating invite_accepted notifications concurrently while another worker was asserting unread==[]. Both tests were fixed (actor_id lookup; snapshot notif ids before mark-read then diff)."
+}

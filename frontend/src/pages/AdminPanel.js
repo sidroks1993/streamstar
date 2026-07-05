@@ -58,7 +58,7 @@ export default function AdminPanel() {
     try {
       const [u, n, r, e, rm] = await Promise.all([
         api.get("/users"),
-        api.get("/notifications"),
+        api.get("/notifications/me"),
         api.get("/host-requests"),
         api.get("/events"),
         api.get("/rooms"),
@@ -122,7 +122,7 @@ export default function AdminPanel() {
 
   const markRead = async () => {
     try {
-      await api.post("/notifications/mark-read");
+      await api.post("/notifications/me/read-all");
       setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch { /* ignore */ }
   };

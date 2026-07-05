@@ -667,15 +667,15 @@ async def list_host_requests(_: dict = Depends(require_super_admin)):
     items = await db.host_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
     return items
 
-@api.get("/notifications", response_model=List[NotificationOut])
-async def list_notifications(_: dict = Depends(require_super_admin)):
-    items = await db.notifications.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return items
+@api.get("/notifications", response_model=List[NotificationOut], deprecated=True)
+async def list_notifications(user: dict = Depends(require_super_admin)):
+    """DEPRECATED — use GET /api/notifications/me instead. This alias will be removed in a future release."""
+    return await list_my_notifications(user)
 
-@api.post("/notifications/mark-read")
-async def mark_all_read(_: dict = Depends(require_super_admin)):
-    await db.notifications.update_many({"read": False}, {"$set": {"read": True}})
-    return {"ok": True}
+@api.post("/notifications/mark-read", deprecated=True)
+async def mark_all_read(user: dict = Depends(require_super_admin)):
+    """DEPRECATED — use POST /api/notifications/me/read-all instead."""
+    return await mark_my_all_read(user)
 
 @api.get("/notifications/me", response_model=List[NotificationOut])
 async def list_my_notifications(user: dict = Depends(get_current_user)):
@@ -741,6 +741,82 @@ async def webrtc_config(_: dict = Depends(get_current_user)):
             entry["credential"] = c
         servers.append(entry)
     return {"iceServers": servers}
+
+
+# ---------------- One-tap invite links (signed JWT, 15-min expiry) ----------------
+
+class InviteOut(BaseModel):
+    invite_token: str
+    invite_url: str
+    expires_at: str
+    room_id: str
+
+class InviteAcceptIn(BaseModel):
+    token: str
+
+INVITE_TTL_SECONDS = 15 * 60
+
+@api.post("/rooms/{room_id}/invites", response_model=InviteOut)
+async def create_invite(room_id: str, request: Request, user: dict = Depends(get_current_user)):
+    """Host (or super admin) generates a one-tap invite. Recipients who follow the link and sign in
+    are auto-admitted (no knock) on their first visit."""
+    room = await db.rooms.find_one({"room_id": room_id}, {"_id": 0})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if user.get("role") != "super_admin" and room.get("host_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Only the room host can generate invites")
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(seconds=INVITE_TTL_SECONDS)
+    payload = {
+        "typ": "invite",
+        "room_id": room_id,
+        "iss_uid": user["user_id"],
+        "exp": int(exp.timestamp()),
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    origin = os.environ.get("PUBLIC_APP_URL") or str(request.base_url).rstrip("/").replace("/api", "")
+    invite_url = f"{origin.rstrip('/')}/watch/{room_id}?invite={token}"
+    await _log_event("invite_created", actor=user, room=room, meta={"expires_at": exp.isoformat()})
+    return InviteOut(invite_token=token, invite_url=invite_url, expires_at=exp.isoformat(), room_id=room_id)
+
+@api.post("/invites/accept")
+async def accept_invite(body: InviteAcceptIn, user: dict = Depends(get_current_user)):
+    """Consume a one-tap invite token. Upserts the current user's room_visits so the WS handler auto-admits them."""
+    try:
+        payload = jwt.decode(body.token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=410, detail="This invite has expired. Ask the host for a new one.")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=400, detail="Invalid invite token")
+    if payload.get("typ") != "invite":
+        raise HTTPException(status_code=400, detail="Not an invite token")
+    room_id = payload.get("room_id")
+    if not room_id:
+        raise HTTPException(status_code=400, detail="Invite is missing a room")
+    room = await db.rooms.find_one({"room_id": room_id}, {"_id": 0})
+    if not room:
+        raise HTTPException(status_code=404, detail="The invited room no longer exists")
+    # Upsert room_visits so the WS handler will auto-admit this user (skip the knock queue).
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.room_visits.update_one(
+        {"user_id": user["user_id"], "room_id": room_id},
+        {
+            "$set": {"last_joined_at": now_iso, "admitted_via": "invite"},
+            "$setOnInsert": {"first_joined_at": now_iso, "user_id": user["user_id"], "room_id": room_id},
+        },
+        upsert=True,
+    )
+    await _log_event("invite_accepted", actor=user, room=room, meta={"issuer_uid": payload.get("iss_uid")})
+    # Persistent notification for the host that someone accepted their invite
+    if room.get("host_id"):
+        await _add_notification(
+            f"{user.get('name') or 'A guest'} accepted your invite to '{room.get('name')}'.",
+            "invite_accepted",
+            user_id=user["user_id"],
+            recipient_id=room["host_id"],
+            meta={"room_id": room_id, "user_id": user["user_id"], "user_name": user.get("name")},
+        )
+    return {"room_id": room_id, "room_name": room.get("name"), "admitted": True}
 
 # ---------------- Rooms ----------------
 
