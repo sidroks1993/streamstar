@@ -55,6 +55,10 @@
 - ✅ Self-profile endpoints: `PATCH /api/users/me` (name+email), `POST /api/users/me/change-password`
 - ⏸ **Email verification via Resend** — deferred; user opted to skip email for now, will wire later (backend has `email_verified` field ready; register + login flow simply defaults to `true` until email provider is configured)
 
+## Iteration 6 (2026-02-05)
+- ✅ **Dashboard room cards — prominent code + invite link**: each card now displays a purple-gradient share block with the room CODE (uppercase monospace) and LINK on separate rows. Both rows and their trailing copy icons are clickable to copy. Hosts can share instantly the moment a room is created without opening the watch room. Test IDs: `share-block-<room_id>`, `room-code-<room_id>`, `copy-code-<room_id>`, `room-link-<room_id>`, `copy-room-<room_id>`.
+- ✅ **Landing "How it works" — first step rewrite**: replaced generic "Get invited / super admin grants access" copy with **"Claim your director's chair"** — customer-control-forward vocabulary ("design your own private theater, set the vibe, invite your crew, call the shots"). Reinforces StreamStar's promise of frictionless self-serve hosting.
+
 ## Prioritized Backlog
 ### P0 (blocking, none)
 _None_
