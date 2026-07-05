@@ -12,6 +12,7 @@ import AdminPanel from "./pages/AdminPanel";
 import WatchRoom from "./pages/WatchRoom";
 import AuthCallback from "./pages/AuthCallback";
 import ForgotPassword from "./pages/ForgotPassword";
+import JoinByCode from "./pages/JoinByCode";
 
 function AppRouter() {
   const location = useLocation();
@@ -25,6 +26,7 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/join" element={<JoinByCode />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPanel /></ProtectedRoute>} />
       <Route path="/watch/:roomId" element={<ProtectedRoute><WatchRoom /></ProtectedRoute>} />

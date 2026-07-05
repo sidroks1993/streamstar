@@ -51,9 +51,9 @@ export default function Landing() {
                   Create your theater
                 </Button>
               </Link>
-              <Link to="/login" data-testid="hero-cta-signin">
+              <Link to="/join" data-testid="hero-cta-join">
                 <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 px-7 py-6 text-base rounded-md">
-                  I have an invite
+                  Join with code
                 </Button>
               </Link>
             </div>

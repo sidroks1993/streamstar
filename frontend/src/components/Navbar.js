@@ -31,7 +31,7 @@ export default function Navbar() {
           )}
           {user ? (
             <>
-              <div className="hidden sm:flex items-center gap-2 mr-2" data-testid="nav-user">
+              <Link to="/dashboard" className="hidden sm:flex items-center gap-2 mr-2 hover:opacity-80" data-testid="nav-user">
                 {user.picture ? (
                   <img src={user.picture} alt="" className="w-7 h-7 rounded-full object-cover" />
                 ) : (
@@ -40,7 +40,7 @@ export default function Navbar() {
                   </div>
                 )}
                 <span className="text-sm text-white/80">{user.name}</span>
-              </div>
+              </Link>
               <Button variant="ghost" onClick={onLogout} data-testid="logout-btn" className="text-white/70 hover:text-white hover:bg-white/5">
                 <LogOut className="w-4 h-4 mr-2" /> Logout
               </Button>
