@@ -1,89 +1,513 @@
-from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
-
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+import os
+import uuid
+import logging
+import asyncio
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Set, List
 
-# Create the main app without a prefix
-app = FastAPI()
+import bcrypt
+import jwt
+import httpx
+from fastapi import (
+    FastAPI,
+    APIRouter,
+    HTTPException,
+    Depends,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+    Query,
+)
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
+# ---------------- Setup ----------------
 
+MONGO_URL = os.environ["MONGO_URL"]
+DB_NAME = os.environ["DB_NAME"]
+JWT_SECRET = os.environ["JWT_SECRET"]
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_MINUTES = 60 * 24 * 7  # 7 days for simplicity
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DB_NAME]
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+app = FastAPI(title="StreamStar API")
+api = APIRouter(prefix="/api")
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("streamstar")
+
+# ---------------- Models ----------------
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    user_id: str
+    email: str
+    name: str
+    role: str = "viewer"  # viewer | host | super_admin
+    can_host: bool = False
+    picture: Optional[str] = None
+    auth_provider: str = "email"  # email | google
+
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6)
+    name: str = Field(min_length=1, max_length=64)
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+class RoomCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    is_public: bool = True
+
+class RoomOut(BaseModel):
+    room_id: str
+    name: str
+    host_id: Optional[str] = None
+    host_name: Optional[str] = None
+    is_public: bool
+    created_by: str
+    created_at: str
+    participant_count: int = 0
+
+class GrantHostIn(BaseModel):
+    user_id: str
+    can_host: bool
+
+# ---------------- Helpers ----------------
+
+def hash_password(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(pw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode(), hashed.encode())
+    except Exception:
+        return False
+
+def create_access_token(user_id: str) -> str:
+    payload = {
+        "sub": user_id,
+        "type": "access",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_MINUTES),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def user_to_out(user: dict) -> UserOut:
+    return UserOut(
+        user_id=user["user_id"],
+        email=user["email"],
+        name=user.get("name", ""),
+        role=user.get("role", "viewer"),
+        can_host=bool(user.get("can_host", False)) or user.get("role") == "super_admin",
+        picture=user.get("picture"),
+        auth_provider=user.get("auth_provider", "email"),
+    )
+
+async def _find_user_by_token(token: str) -> Optional[dict]:
+    # Try JWT first
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") == "access":
+            user = await db.users.find_one({"user_id": payload["sub"]}, {"_id": 0})
+            if user:
+                return user
+    except jwt.PyJWTError:
+        pass
+    # Fall back to Emergent session_token
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if not session:
+        return None
+    exp = session.get("expires_at")
+    if isinstance(exp, str):
+        exp = datetime.fromisoformat(exp)
+    if exp and exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp and exp < datetime.now(timezone.utc):
+        return None
+    return await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
+
+async def get_current_user(request: Request) -> dict:
+    token = request.cookies.get("session_token") or request.cookies.get("access_token")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = await _find_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    return user
+
+async def require_super_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Super admin only")
+    return user
+
+def _set_cookie(response: Response, name: str, value: str, days: int):
+    response.set_cookie(
+        key=name,
+        value=value,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=days * 24 * 60 * 60,
+        path="/",
+    )
+
+# ---------------- Startup ----------------
+
+@app.on_event("startup")
+async def on_startup():
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("user_id", unique=True)
+    await db.rooms.create_index("room_id", unique=True)
+    await db.user_sessions.create_index("session_token", unique=True)
+
+    admin_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "")
+    admin_name = os.environ.get("ADMIN_NAME", "Super Admin")
+    if admin_email and admin_password:
+        existing = await db.users.find_one({"email": admin_email})
+        if existing is None:
+            await db.users.insert_one({
+                "user_id": f"user_{uuid.uuid4().hex[:12]}",
+                "email": admin_email,
+                "name": admin_name,
+                "password_hash": hash_password(admin_password),
+                "role": "super_admin",
+                "can_host": True,
+                "auth_provider": "email",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            logger.info(f"Seeded super admin: {admin_email}")
+        else:
+            update = {"role": "super_admin", "can_host": True}
+            if not existing.get("password_hash") or not verify_password(admin_password, existing["password_hash"]):
+                update["password_hash"] = hash_password(admin_password)
+            await db.users.update_one({"email": admin_email}, {"$set": update})
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    client.close()
+
+# ---------------- Auth endpoints ----------------
+
+@api.post("/auth/register", response_model=UserOut)
+async def register(body: RegisterIn, response: Response):
+    email = body.email.lower().strip()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "user_id": user_id,
+        "email": email,
+        "name": body.name,
+        "password_hash": hash_password(body.password),
+        "role": "viewer",
+        "can_host": False,
+        "auth_provider": "email",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(doc)
+    token = create_access_token(user_id)
+    _set_cookie(response, "access_token", token, days=7)
+    return user_to_out(doc)
+
+@api.post("/auth/login", response_model=UserOut)
+async def login(body: LoginIn, response: Response):
+    email = body.email.lower().strip()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_access_token(user["user_id"])
+    _set_cookie(response, "access_token", token, days=7)
+    return user_to_out(user)
+
+@api.post("/auth/logout")
+async def logout(response: Response, request: Request):
+    # Try clear both cookie kinds
+    token = request.cookies.get("session_token")
+    if token:
+        await db.user_sessions.delete_one({"session_token": token})
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("session_token", path="/")
+    return {"ok": True}
+
+@api.get("/auth/me", response_model=UserOut)
+async def me(user: dict = Depends(get_current_user)):
+    return user_to_out(user)
+
+@api.get("/auth/ws-token")
+async def ws_token(user: dict = Depends(get_current_user)):
+    # Short-lived token the browser can put in the WebSocket URL (browsers can't send httpOnly cookies via ?token)
+    payload = {
+        "sub": user["user_id"],
+        "type": "access",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=30),
+    }
+    return {"token": jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)}
+
+# Emergent Google OAuth: exchange session_id for user
+class SessionExchangeIn(BaseModel):
+    session_id: str
+
+@api.post("/auth/session", response_model=UserOut)
+async def exchange_session(body: SessionExchangeIn, response: Response):
+    async with httpx.AsyncClient(timeout=15) as http:
+        r = await http.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": body.session_id},
+        )
+    if r.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid Emergent session")
+    data = r.json()
+    email = data["email"].lower().strip()
+    session_token = data["session_token"]
+
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user_id = existing["user_id"]
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"name": data.get("name") or existing.get("name"), "picture": data.get("picture"), "auth_provider": existing.get("auth_provider", "google")}},
+        )
+        user = await db.users.find_one({"email": email}, {"_id": 0})
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        # Auto-promote seeded super admin email when they first Google-login
+        admin_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+        role = "super_admin" if email == admin_email else "viewer"
+        can_host = role == "super_admin"
+        user = {
+            "user_id": user_id,
+            "email": email,
+            "name": data.get("name") or email.split("@")[0],
+            "picture": data.get("picture"),
+            "role": role,
+            "can_host": can_host,
+            "auth_provider": "google",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.users.insert_one(user)
+
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.update_one(
+        {"session_token": session_token},
+        {"$set": {"session_token": session_token, "user_id": user["user_id"], "expires_at": expires_at.isoformat()}},
+        upsert=True,
+    )
+    _set_cookie(response, "session_token", session_token, days=7)
+    return user_to_out(user)
+
+# ---------------- Users / Admin endpoints ----------------
+
+@api.get("/users", response_model=List[UserOut])
+async def list_users(_: dict = Depends(require_super_admin)):
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(500)
+    return [user_to_out(u) for u in users]
+
+@api.post("/users/grant-host", response_model=UserOut)
+async def grant_host(body: GrantHostIn, _: dict = Depends(require_super_admin)):
+    user = await db.users.find_one({"user_id": body.user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.get("role") == "super_admin":
+        raise HTTPException(status_code=400, detail="Cannot modify super admin")
+    new_role = "host" if body.can_host else "viewer"
+    await db.users.update_one(
+        {"user_id": body.user_id},
+        {"$set": {"can_host": body.can_host, "role": new_role}},
+    )
+    user = await db.users.find_one({"user_id": body.user_id}, {"_id": 0})
+    return user_to_out(user)
+
+# ---------------- Rooms ----------------
+
+@api.post("/rooms", response_model=RoomOut)
+async def create_room(body: RoomCreateIn, user: dict = Depends(get_current_user)):
+    if not (user.get("can_host") or user.get("role") in ("host", "super_admin")):
+        raise HTTPException(status_code=403, detail="You do not have permission to host. Ask the super admin to grant host access.")
+    room_id = uuid.uuid4().hex[:10]
+    doc = {
+        "room_id": room_id,
+        "name": body.name,
+        "is_public": bool(body.is_public),
+        "created_by": user["user_id"],
+        "host_id": user["user_id"],
+        "host_name": user.get("name"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.rooms.insert_one(doc)
+    return RoomOut(**doc, participant_count=0)
+
+@api.get("/rooms", response_model=List[RoomOut])
+async def list_public_rooms(_: dict = Depends(get_current_user)):
+    rooms = await db.rooms.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return [RoomOut(**r, participant_count=len(ROOMS.get(r["room_id"], {}))) for r in rooms]
+
+@api.get("/rooms/{room_id}", response_model=RoomOut)
+async def get_room(room_id: str, _: dict = Depends(get_current_user)):
+    r = await db.rooms.find_one({"room_id": room_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return RoomOut(**r, participant_count=len(ROOMS.get(room_id, {})))
+
+# ---------------- WebSocket signaling + chat ----------------
+
+# room_id -> { user_id: {"ws": WebSocket, "name": str, "is_host": bool} }
+ROOMS: Dict[str, Dict[str, dict]] = {}
+
+async def _broadcast(room_id: str, message: dict, exclude: Optional[str] = None):
+    participants = ROOMS.get(room_id, {})
+    dead = []
+    for uid, p in list(participants.items()):
+        if uid == exclude:
+            continue
+        try:
+            await p["ws"].send_json(message)
+        except Exception:
+            dead.append(uid)
+    for uid in dead:
+        participants.pop(uid, None)
+
+async def _send_to(room_id: str, user_id: str, message: dict):
+    p = ROOMS.get(room_id, {}).get(user_id)
+    if p:
+        try:
+            await p["ws"].send_json(message)
+        except Exception:
+            pass
+
+def _participants_snapshot(room_id: str) -> List[dict]:
+    return [
+        {"user_id": uid, "name": p["name"], "is_host": p["is_host"]}
+        for uid, p in ROOMS.get(room_id, {}).items()
+    ]
+
+@app.websocket("/api/ws/room/{room_id}")
+async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
+    user = await _find_user_by_token(token)
+    if not user:
+        await websocket.close(code=4401)
+        return
+    room = await db.rooms.find_one({"room_id": room_id}, {"_id": 0})
+    if not room:
+        await websocket.close(code=4404)
+        return
+
+    await websocket.accept()
+    user_id = user["user_id"]
+    is_host = (room.get("host_id") == user_id) and (user.get("can_host") or user.get("role") in ("host", "super_admin"))
+
+    if room_id not in ROOMS:
+        ROOMS[room_id] = {}
+
+    # If user reconnects, close old socket
+    if user_id in ROOMS[room_id]:
+        try:
+            await ROOMS[room_id][user_id]["ws"].close()
+        except Exception:
+            pass
+
+    ROOMS[room_id][user_id] = {"ws": websocket, "name": user.get("name") or "Guest", "is_host": is_host}
+
+    # Tell the client its context
+    await websocket.send_json({
+        "type": "welcome",
+        "user_id": user_id,
+        "name": user.get("name"),
+        "is_host": is_host,
+        "host_id": room.get("host_id"),
+        "participants": _participants_snapshot(room_id),
+    })
+    # Notify others of the new participant
+    await _broadcast(room_id, {
+        "type": "participant_joined",
+        "user": {"user_id": user_id, "name": user.get("name"), "is_host": is_host},
+        "participants": _participants_snapshot(room_id),
+    }, exclude=user_id)
+
+    try:
+        while True:
+            msg = await websocket.receive_json()
+            mtype = msg.get("type")
+            if mtype == "chat":
+                text = (msg.get("text") or "").strip()
+                if not text:
+                    continue
+                payload = {
+                    "type": "chat",
+                    "from": user_id,
+                    "name": user.get("name"),
+                    "text": text[:1000],
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                }
+                # Send to everyone including sender for consistent state
+                await _broadcast(room_id, payload)
+            elif mtype in ("webrtc_offer", "webrtc_answer", "webrtc_ice"):
+                to = msg.get("to")
+                if not to:
+                    continue
+                await _send_to(room_id, to, {
+                    "type": mtype,
+                    "from": user_id,
+                    "data": msg.get("data"),
+                })
+            elif mtype == "host_streaming":
+                # Host notifies viewers streaming has started/stopped
+                await _broadcast(room_id, {
+                    "type": "host_streaming",
+                    "streaming": bool(msg.get("streaming")),
+                    "host_id": user_id,
+                }, exclude=user_id)
+            elif mtype == "request_stream":
+                # Viewer asks the host to initiate a peer connection
+                if room.get("host_id"):
+                    await _send_to(room_id, room["host_id"], {
+                        "type": "request_stream",
+                        "from": user_id,
+                    })
+            else:
+                # Unknown -> ignore
+                pass
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.info(f"ws error: {e}")
+    finally:
+        ROOMS.get(room_id, {}).pop(user_id, None)
+        await _broadcast(room_id, {
+            "type": "participant_left",
+            "user_id": user_id,
+            "participants": _participants_snapshot(room_id),
+        })
+
+# ---------------- Health ----------------
+
+@api.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"service": "StreamStar", "ok": True}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
-app.include_router(api_router)
+app.include_router(api)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=["*"],
+    allow_origin_regex=".*",
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
