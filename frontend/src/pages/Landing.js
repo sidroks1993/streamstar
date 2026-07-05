@@ -8,7 +8,7 @@ import Navbar from "../components/Navbar";
 const HERO_BG = "https://images.pexels.com/photos/18501410/pexels-photo-18501410.jpeg";
 
 const steps = [
-  { icon: ShieldCheck, title: "Get invited", desc: "The super admin grants you host access. Viewers can join any public room instantly." },
+  { icon: ShieldCheck, title: "Claim your director's chair", desc: "Design your own private theater — set the vibe, invite your crew, and call the shots. Guests slip in with a single click, no accounts, no friction." },
   { icon: Film, title: "Pick a movie", desc: "Host clicks 'Start Streaming' and selects a video file from their computer." },
   { icon: Share2, title: "Share the link", desc: "Copy the room link and send it to friends. One click and they're in." },
   { icon: MessageCircle, title: "Watch & chat", desc: "Everyone watches in sync. Chat in the sidebar. Reactions, jokes, popcorn — bring it all." },

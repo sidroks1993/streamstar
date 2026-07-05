@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock } from "lucide-react";
+import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock, Link2, Hash } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -83,6 +83,11 @@ export default function Dashboard() {
     const url = `${window.location.origin}/watch/${roomId}`;
     navigator.clipboard.writeText(url);
     toast.success("Invite link copied");
+  };
+
+  const copyCode = (roomId) => {
+    navigator.clipboard.writeText(roomId);
+    toast.success("Room code copied");
   };
 
   const joinById = () => {
@@ -247,8 +252,8 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {rooms.map((r) => (
-              <div key={r.room_id} className="group rounded-xl border border-white/10 bg-[#0E0E0E] p-5 hover:border-white/20 transition-colors" data-testid={`room-card-${r.room_id}`}>
-                <div className="flex items-start justify-between mb-6">
+              <div key={r.room_id} className="group rounded-xl border border-white/10 bg-[#0E0E0E] p-5 hover:border-[#A855F7]/40 transition-colors" data-testid={`room-card-${r.room_id}`}>
+                <div className="flex items-start justify-between mb-4">
                   <div>
                     <h3 className="font-display text-lg leading-tight">{r.name}</h3>
                     <div className="text-xs text-white/40 mt-1">Hosted by {r.host_name || "—"}</div>
@@ -257,16 +262,56 @@ export default function Dashboard() {
                     <Users className="w-3 h-3" /> {r.participant_count}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Link to={`/watch/${r.room_id}`} className="flex-1">
-                    <Button className="w-full bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid={`join-room-${r.room_id}`}>
-                      Join room
-                    </Button>
-                  </Link>
-                  <Button variant="ghost" onClick={() => copyLink(r.room_id)} className="text-white/60 hover:text-white hover:bg-white/5" data-testid={`copy-room-${r.room_id}`}>
-                    <Copy className="w-4 h-4" />
-                  </Button>
+
+                {/* Prominent share block: room code + invite link */}
+                <div className="rounded-lg border border-[#A855F7]/25 bg-gradient-to-br from-[#A855F7]/10 to-[#C026D3]/5 p-3 mb-4 space-y-2" data-testid={`share-block-${r.room_id}`}>
+                  <div className="flex items-center gap-2">
+                    <Hash className="w-3.5 h-3.5 text-[#A855F7] shrink-0" />
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-white/50 w-14 shrink-0">Code</div>
+                    <button
+                      onClick={() => copyCode(r.room_id)}
+                      className="flex-1 min-w-0 font-mono text-sm text-white tracking-widest text-left truncate hover:text-[#A855F7] transition-colors"
+                      data-testid={`room-code-${r.room_id}`}
+                      title="Click to copy code"
+                    >
+                      {r.room_id.toUpperCase()}
+                    </button>
+                    <button
+                      onClick={() => copyCode(r.room_id)}
+                      className="text-white/50 hover:text-white p-1 rounded hover:bg-white/5"
+                      data-testid={`copy-code-${r.room_id}`}
+                      aria-label="Copy code"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link2 className="w-3.5 h-3.5 text-[#A855F7] shrink-0" />
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-white/50 w-14 shrink-0">Link</div>
+                    <button
+                      onClick={() => copyLink(r.room_id)}
+                      className="flex-1 min-w-0 text-xs text-white/70 truncate text-left hover:text-[#A855F7] transition-colors"
+                      data-testid={`room-link-${r.room_id}`}
+                      title="Click to copy link"
+                    >
+                      {`${window.location.origin.replace(/^https?:\/\//, "")}/watch/${r.room_id}`}
+                    </button>
+                    <button
+                      onClick={() => copyLink(r.room_id)}
+                      className="text-white/50 hover:text-white p-1 rounded hover:bg-white/5"
+                      data-testid={`copy-room-${r.room_id}`}
+                      aria-label="Copy invite link"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
+
+                <Link to={`/watch/${r.room_id}`}>
+                  <Button className="w-full bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid={`join-room-${r.room_id}`}>
+                    Enter room
+                  </Button>
+                </Link>
               </div>
             ))}
           </div>
