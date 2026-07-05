@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend-only verification of two claimed bug fixes (nav-user -> /dashboard link, and 'Join with code' CTA + /join JoinByCode page). NONE of the described code changes are present in the repo or the live preview. Testing halted at the first two smoke checks because the features do not exist.",
+  "tested_scope": ["frontend"],
+  "passed": [
+    "Frontend loads at REACT_APP_BACKEND_URL (landing renders, hero-cta-signup and hero-cta-signin visible)"
+  ],
+  "failed": [
+    {
+      "area": "Navbar user chip -> /dashboard link",
+      "issue": "In /app/frontend/src/components/Navbar.js, the element with data-testid='nav-user' is still a plain <div>, not a <Link to='/dashboard'>. Clicking it does not navigate to /dashboard.",
+      "evidence": "Navbar.js lines 34-43 show <div ... data-testid='nav-user'> with no Link wrapper and no onClick navigation.",
+      "priority": "HIGH"
+    },
+    {
+      "area": "Landing hero 'Join with code' CTA",
+      "issue": "Landing.js still renders the second hero button as 'I have an invite' with data-testid='hero-cta-signin' linking to /login. No element with data-testid='hero-cta-join' exists. On live site the button text is 'I have an invite'.",
+      "evidence": "Landing.js lines 54-58; live DOM query: hero-cta-join? False, hero-cta-signin text = 'I have an invite'.",
+      "priority": "HIGH"
+    },
+    {
+      "area": "/join route + JoinByCode page",
+      "issue": "No /app/frontend/src/pages/JoinByCode.js file exists. App.js has no <Route path='/join'>. Visiting /join on the live preview renders a blank page (no route match, unauthenticated fallback).",
+      "evidence": "find on src returned no JoinByCode.js; App.js routes list has no /join; live GET /join -> empty body, join-code-input? False.",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "Main agent: the claimed edits were NOT saved to disk. Please (re)apply the changes: 1) Wrap the nav-user chip in <Link to='/dashboard'> in Navbar.js. 2) Replace the second hero CTA in Landing.js with a <Link to='/join' data-testid='hero-cta-join'> button labeled 'Join with code'. 3) Create /app/frontend/src/pages/JoinByCode.js with data-testid 'join-code-input' and 'join-code-submit' (case-insensitive validation via GET /api/rooms). 4) Register <Route path='/join' element={<JoinByCode />} /> in App.js (public, no ProtectedRoute).",
+    "After the files are actually written and the frontend hot-reloads, request re-test."
+  ],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "0% (feature not implemented)"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}
