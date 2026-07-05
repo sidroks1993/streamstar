@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
-  Play, Pause, Volume2, VolumeX, Maximize2, Minimize2, Settings, PictureInPicture, Upload,
+  Play, Pause, Volume2, VolumeX, Maximize2, Minimize2, Settings, PictureInPicture, Film as FilmIcon, MonitorUp, RotateCcw,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
@@ -25,6 +25,8 @@ export default function VideoPlayer({ isHost, onStreamReady, onStreamEnded, remo
   const wrapperRef = useRef(null);
   const [fileUrl, setFileUrl] = useState(null);
   const [fileName, setFileName] = useState("");
+  const [sourceKind, setSourceKind] = useState(null); // 'file' | 'screen' | null
+  const screenStreamRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -75,10 +77,81 @@ export default function VideoPlayer({ isHost, onStreamReady, onStreamEnded, remo
   const onFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Stop any active screen share before switching to file mode
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
     if (fileUrl) URL.revokeObjectURL(fileUrl);
     const url = URL.createObjectURL(file);
     setFileName(file.name);
     setFileUrl(url);
+    setSourceKind("file");
+  };
+
+  // Host: share the screen (or a specific window/tab) directly to viewers via WebRTC.
+  // Nothing uploads anywhere — the MediaStream is streamed peer-to-peer.
+  const shareScreen = async () => {
+    if (!navigator.mediaDevices?.getDisplayMedia) return;
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: true,
+      });
+      // Stop the current source (file) before switching
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
+        setFileUrl(null);
+        setFileName("");
+      }
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      screenStreamRef.current = stream;
+      setSourceKind("screen");
+      // Attach to local <video> for the host to preview
+      const v = videoRef.current;
+      if (v) {
+        v.srcObject = stream;
+        v.play().catch(() => {});
+      }
+      // Send to WebRTC layer
+      if (onStreamReady) onStreamReady(stream);
+      // Auto-clean when the browser share ends (user hits "Stop sharing")
+      stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+        stopScreenShare();
+      });
+    } catch (e) {
+      // User cancelled the picker — no-op
+    }
+  };
+
+  const stopScreenShare = () => {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    const v = videoRef.current;
+    if (v) {
+      v.srcObject = null;
+      v.removeAttribute("src");
+      v.load();
+    }
+    setSourceKind(null);
+    if (onStreamEnded) onStreamEnded();
+  };
+
+  const resetSource = () => {
+    // Return to the source picker (file / screen)
+    if (sourceKind === "screen") {
+      stopScreenShare();
+      return;
+    }
+    if (fileUrl) URL.revokeObjectURL(fileUrl);
+    setFileUrl(null);
+    setFileName("");
+    setSourceKind(null);
+    if (onStreamEnded) onStreamEnded();
   };
 
   const togglePlay = () => {
@@ -179,28 +252,43 @@ export default function VideoPlayer({ isHost, onStreamReady, onStreamEnded, remo
         className="max-h-full max-w-full object-contain"
       />
 
-      {/* Empty state for host */}
-      {isHost && !fileUrl && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+      {/* Empty state for host — pick a local file or share screen. Nothing uploads. */}
+      {isHost && !fileUrl && !screenStreamRef.current && sourceKind !== "screen" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6" data-testid="host-empty-state">
           <div className="w-16 h-16 rounded-full bg-[#A855F7]/10 border border-[#A855F7]/30 flex items-center justify-center mb-6">
-            <Upload className="w-7 h-7 text-[#A855F7]" />
+            <FilmIcon className="w-7 h-7 text-[#A855F7]" />
           </div>
-          <h3 className="font-display text-2xl mb-2">Pick a movie to start streaming</h3>
-          <p className="text-white/50 text-sm mb-6 max-w-md">Everyone in <span className="text-white">{roomName || "this room"}</span> will see it live. Nothing gets uploaded — the stream goes peer-to-peer.</p>
-          <label className="inline-flex cursor-pointer items-center gap-2 bg-[#A855F7] hover:bg-[#C026D3] px-6 py-3 rounded-md text-white font-medium transition-colors" data-testid="pick-movie-btn">
-            <Upload className="w-4 h-4" />
-            Choose video file
-            <input type="file" accept="video/*" onChange={onFileChange} className="hidden" data-testid="file-input" />
-          </label>
+          <h3 className="font-display text-2xl mb-2">Play a local movie or share your screen</h3>
+          <p className="text-white/50 text-sm mb-6 max-w-md">
+            Everyone in <span className="text-white">{roomName || "this room"}</span> watches it live via a direct peer-to-peer stream. Your video never leaves your machine — nothing uploads to any server.
+          </p>
+          <div className="flex flex-wrap gap-3 items-center justify-center">
+            <label className="ss-shimmer inline-flex cursor-pointer items-center gap-2 bg-[#A855F7] hover:bg-[#C026D3] px-6 py-3 rounded-md text-white font-medium transition-colors" data-testid="pick-movie-btn">
+              <FilmIcon className="w-4 h-4" />
+              Play a local file
+              <input type="file" accept="video/*" onChange={onFileChange} className="hidden" data-testid="file-input" />
+            </label>
+            <button
+              onClick={shareScreen}
+              className="ss-shimmer inline-flex items-center gap-2 bg-gradient-to-r from-[#EC4899] to-[#A855F7] hover:opacity-90 px-6 py-3 rounded-md text-white font-medium transition-opacity"
+              data-testid="share-screen-btn"
+            >
+              <MonitorUp className="w-4 h-4" />
+              Share your screen
+            </button>
+          </div>
+          <p className="text-[10px] uppercase tracking-widest text-white/30 mt-6">
+            Peer-to-peer · No server upload · You stay in control
+          </p>
         </div>
       )}
 
       {/* Empty state for viewer */}
       {!isHost && !remoteStream && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6" data-testid="viewer-empty-state">
           <div className="w-3 h-3 rounded-full bg-[#A855F7] animate-pulse mb-4" />
           <h3 className="font-display text-xl mb-1">Waiting for host…</h3>
-          <p className="text-white/50 text-sm">The stream will start as soon as the host picks a movie.</p>
+          <p className="text-white/50 text-sm">The stream will start as soon as the host picks a movie or shares their screen.</p>
         </div>
       )}
 
@@ -287,8 +375,20 @@ export default function VideoPlayer({ isHost, onStreamReady, onStreamEnded, remo
           </div>
         </div>
 
-        {isHost && fileName && (
-          <div className="mt-2 text-xs text-white/40 truncate" data-testid="host-filename">Streaming: {fileName}</div>
+        {isHost && (fileName || sourceKind === "screen") && (
+          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-white/40">
+            <span className="truncate" data-testid="host-filename">
+              {sourceKind === "screen" ? "🖥  Sharing your screen" : `Streaming: ${fileName}`}
+            </span>
+            <button
+              onClick={resetSource}
+              className="text-white/50 hover:text-white flex items-center gap-1 shrink-0"
+              data-testid="host-change-source"
+              title="Stop and pick a different source"
+            >
+              <RotateCcw className="w-3 h-3" /> Change source
+            </button>
+          </div>
         )}
       </div>
     </div>

@@ -52,7 +52,7 @@ export default function Landing() {
               <br /> with <span className="italic text-white/80">anyone</span>.
             </h1>
             <p className="mt-6 text-lg text-white/70 max-w-xl leading-relaxed">
-              StreamStar turns any movie on your machine into a private theater on the web. Stream in HD, chat live, and <span className="text-white font-medium">record the whole session</span> to keep forever — no uploads, no accounts your friends have to hate.
+              StreamStar turns any movie on your machine into a private theater on the web. Stream a local file or share your screen, chat live, and <span className="text-white font-medium">record the whole session</span> to keep forever — nothing uploads, ever.
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <Link to="/register" data-testid="hero-cta-signup">

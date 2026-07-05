@@ -243,8 +243,8 @@ export default function Dashboard() {
             </h1>
             <p className="text-white/60 mt-2 text-sm max-w-lg">
               {canHost
-                ? "Create a room, share the link, and start streaming a movie from your machine."
-                : "Browse public rooms and jump into any movie night. Ask the super admin to grant you host permission to stream your own films."}
+                ? "Open a room, share the link, then play a local movie or share your screen — peer-to-peer to everyone inside."
+                : "Browse public rooms and jump into any movie night. Ask the super admin to grant you host permission to play your own films or share your screen."}
             </p>
           </div>
           <div className="flex gap-3">

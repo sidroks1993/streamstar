@@ -678,7 +678,7 @@ async def request_host(user: dict = Depends(get_current_user)):
         return {"status": "already_host"}
     existing = await db.host_requests.find_one({"user_id": user["user_id"], "status": "pending"}, {"_id": 0})
     if existing:
-        return {"status": "pending", "created_at": existing["created_at"], "auto_approve_at": existing.get("auto_approve_at")}
+        return {"status": "pending", "created_at": existing["created_at"]}
     now = datetime.now(timezone.utc)
     auto_at = (now + timedelta(seconds=60)).isoformat()
     doc = {
@@ -688,12 +688,12 @@ async def request_host(user: dict = Depends(get_current_user)):
         "user_name": user.get("name"),
         "status": "pending",
         "created_at": now.isoformat(),
-        "auto_approve_at": auto_at,
+        "auto_approve_at": auto_at,  # stored in DB for admin listing, NOT returned to the requesting user
     }
     await db.host_requests.insert_one(doc)
     await _add_notification(f"{user.get('name')} ({user['email']}) requested host access.", "host_request", user["user_id"])
     asyncio.create_task(_auto_approve_host(user["user_id"], 60))
-    return {"status": "pending", "created_at": doc["created_at"], "auto_approve_at": auto_at}
+    return {"status": "pending", "created_at": doc["created_at"]}
 
 @api.get("/host-requests")
 async def list_host_requests(_: dict = Depends(require_super_admin)):

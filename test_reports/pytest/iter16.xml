@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="2" failures="1" skipped="0" tests="3" time="2.225" timestamp="2026-07-05T20:15:51.964212+00:00" hostname="agent-env-b2ad357f-66bc-454a-b8d6-29736f8f2ae8"><testcase classname="tests.test_iter16_no_upload_leak" name="test_host_request_fresh_create_omits_auto_approve_at" time="1.191"><error message="failed on setup with &quot;KeyError: 'access_token'&quot;">backend/tests/test_iter16_no_upload_leak.py:68: in viewer_token
+    _, tok = _register_viewer()
+             ^^^^^^^^^^^^^^^^^^
+backend/tests/test_iter16_no_upload_leak.py:50: in _register_viewer
+    super_tok = _login(SUPER_EMAIL, SUPER_PASS)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/tests/test_iter16_no_upload_leak.py:32: in _login
+    return r.json()["access_token"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'access_token'</error></testcase><testcase classname="tests.test_iter16_no_upload_leak" name="test_host_request_already_pending_omits_auto_approve_at" time="0.000"><error message="failed on setup with &quot;KeyError: 'access_token'&quot;">backend/tests/test_iter16_no_upload_leak.py:68: in viewer_token
+    _, tok = _register_viewer()
+             ^^^^^^^^^^^^^^^^^^
+backend/tests/test_iter16_no_upload_leak.py:50: in _register_viewer
+    super_tok = _login(SUPER_EMAIL, SUPER_PASS)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/tests/test_iter16_no_upload_leak.py:32: in _login
+    return r.json()["access_token"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'access_token'</error></testcase><testcase classname="tests.test_iter16_no_upload_leak" name="test_super_admin_list_still_has_auto_approve_at_server_side" time="0.332"><failure message="KeyError: 'access_token'">backend/tests/test_iter16_no_upload_leak.py:99: in test_super_admin_list_still_has_auto_approve_at_server_side
+    tok = _login(SUPER_EMAIL, SUPER_PASS)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/tests/test_iter16_no_upload_leak.py:32: in _login
+    return r.json()["access_token"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'access_token'</failure></testcase></testsuite></testsuites>
