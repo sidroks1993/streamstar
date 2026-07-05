@@ -23,8 +23,8 @@ export default function Navbar() {
             <Logo size={40} className="group-hover:rotate-12 transition-transform duration-300" />
           </span>
           <span className="ss-nav-wordmark font-display text-2xl md:text-[26px] tracking-tight leading-none">
-            <span className="text-[#22D3EE] mr-0.5 align-super text-[13px] md:text-[15px]">©</span>
             <span>Stream<span className="ss-gradient-text">Star</span></span>
+            <span className="text-[#22D3EE] ml-1 align-super text-[13px] md:text-[15px]">©</span>
           </span>
         </Link>
         <nav className="flex items-center gap-2">

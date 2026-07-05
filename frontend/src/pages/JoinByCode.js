@@ -32,7 +32,7 @@ export default function JoinByCode() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#050505] px-6">
       <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center gap-2 mb-8"><Logo size={22} /><span className="font-display text-lg">© StreamStar</span></Link>
+        <Link to="/" className="flex items-center gap-2 mb-8"><Logo size={22} /><span className="font-display text-lg">StreamStar ©</span></Link>
         <h1 className="font-display text-3xl mb-2 tracking-tight">Join a watch party</h1>
         <p className="text-white/60 text-sm mb-8">Enter the code your host sent you. Codes are not case-sensitive.</p>
         <form onSubmit={submit} className="space-y-4" data-testid="join-code-form">

@@ -27,7 +27,7 @@ export default function ForgotPassword() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#050505] px-6">
       <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center gap-2 mb-8"><Logo size={22} /><span className="font-display text-lg">© StreamStar</span></Link>
+        <Link to="/" className="flex items-center gap-2 mb-8"><Logo size={22} /><span className="font-display text-lg">StreamStar ©</span></Link>
         <h1 className="font-display text-3xl mb-2 tracking-tight">Forgot your password?</h1>
         <p className="text-white/60 text-sm mb-8">Enter your email and we&apos;ll send a reset link. Check your inbox (and spam folder).</p>
         {sent ? (

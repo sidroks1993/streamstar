@@ -134,7 +134,7 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-10 text-center text-xs text-white/40 uppercase tracking-[0.2em] relative z-10">
-        © StreamStar · Built for cinephiles
+        StreamStar © · Built for cinephiles
       </footer>
     </div>
   );
