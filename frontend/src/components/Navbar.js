@@ -20,7 +20,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group" data-testid="nav-logo">
           <Logo size={22} className="group-hover:rotate-12 transition-transform duration-300" />
-          <span className="font-display text-lg tracking-tight">StreamStar</span>
+          <span className="font-display text-lg tracking-tight">© StreamStar</span>
         </Link>
         <nav className="flex items-center gap-2">
           {user?.role === "super_admin" && (

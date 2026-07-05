@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import Logo from "../components/Logo";
-import { Film, Users, MessageCircle, Wand2, ShieldCheck, Share2, Download } from "lucide-react";
+import { Film, Users, MessageCircle, Wand2, ShieldCheck, Share2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import Navbar from "../components/Navbar";
 import CursorGlow from "../components/CursorGlow";
@@ -65,24 +65,6 @@ export default function Landing() {
                   Join with code
                 </Button>
               </Link>
-              <div className="flex items-center gap-2 pl-2 border-l border-white/10 ml-1">
-                <span className="text-[10px] uppercase tracking-widest text-white/40 self-center hidden sm:inline">Brand kit</span>
-                <a href="/streamstar-logo.png" download="streamstar-logo-2400.png" data-testid="hero-cta-download-png" title="Download 2400×2400 PNG">
-                  <Button variant="ghost" className="ss-btn-glow text-white/70 hover:text-white hover:bg-white/5 px-3 py-6 rounded-md">
-                    <Download className="w-3.5 h-3.5 mr-1" /> PNG
-                  </Button>
-                </a>
-                <a href="/streamstar-logo.jpg" download="streamstar-logo-2400.jpg" data-testid="hero-cta-download-jpg" title="Download 2400×2400 JPEG">
-                  <Button variant="ghost" className="ss-btn-glow text-white/70 hover:text-white hover:bg-white/5 px-3 py-6 rounded-md">
-                    <Download className="w-3.5 h-3.5 mr-1" /> JPG
-                  </Button>
-                </a>
-                <a href="/streamstar-logo-transparent.png" download="streamstar-logo-transparent-2400.png" data-testid="hero-cta-download-transparent" title="Download 2400×2400 transparent PNG">
-                  <Button variant="ghost" className="ss-btn-glow text-white/70 hover:text-white hover:bg-white/5 px-3 py-6 rounded-md" title="Transparent PNG">
-                    <Download className="w-3.5 h-3.5 mr-1" /> Transparent
-                  </Button>
-                </a>
-              </div>
             </div>
           </div>
         </div>
@@ -151,8 +133,8 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-10 text-center text-xs text-white/40 uppercase tracking-[0.2em]">
-        StreamStar · Built for cinephiles
+      <footer className="border-t border-white/10 py-10 text-center text-xs text-white/40 uppercase tracking-[0.2em] relative z-10">
+        © StreamStar · Built for cinephiles
       </footer>
     </div>
   );

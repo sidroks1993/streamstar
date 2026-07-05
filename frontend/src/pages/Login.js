@@ -58,7 +58,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <Link to="/" className="flex items-center gap-2 mb-8" data-testid="login-logo">
           <Logo size={22} />
-          <span className="font-display text-lg">StreamStar</span>
+          <span className="font-display text-lg">© StreamStar</span>
         </Link>
         <h1 className="font-display text-3xl mb-2 tracking-tight">Sign in</h1>
         <p className="text-white/60 text-sm mb-6">Welcome back. Let&apos;s find something to watch together.</p>

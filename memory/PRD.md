@@ -79,6 +79,22 @@
 - ✅ **Ghost logo watermark**: `<BackgroundLogo variant="full" />` centers a huge, ~3.5% opacity brand mark behind the landing page. `<BackgroundLogo variant="peek" />` anchors a partial mark to the bottom-right of the dashboard for a subtle "peeking" watermark. Both are `pointer-events: none` and non-interactive.
 - ✅ **HD brand kit generated + served**: `/streamstar-logo.png` (2400×2400 dark PNG, 110KB), `/streamstar-logo.jpg` (2400×2400 JPEG, 117KB), `/streamstar-logo-transparent.png` (2400×2400 transparent PNG, 132KB), `/streamstar-logo.svg` (source vector). All served by the static CRA build. Landing hero has a "Brand kit" pill with three download buttons.
 
+## Iteration 12 (2026-02-05)
+- ✅ **Full logo watermark**: `<BackgroundLogo variant="full" />` now renders the mark PLUS the "StreamStar" wordmark (SVG-embedded Outfit font) as the ghosted watermark behind the landing page at ~5% opacity, spanning up to 190vw.
+- ✅ **Full-logo brand kit files** generated + served at (2400×2400 → repurposed 3200×800 for wordmark):
+  - `/streamstar-full-logo.png` (dark bg, 82 KB)
+  - `/streamstar-full-logo.jpg` (dark bg, 112 KB)
+  - `/streamstar-full-logo-transparent.png` (transparent, 88 KB)
+  - `/streamstar-full-logo.svg` (source vector)
+- ✅ **Brand-kit downloads removed from Landing hero** per request — files remain on the server for the account owner only.
+- ✅ **© symbol in front of StreamStar** on every user-facing surface: Navbar, Login, Register, JoinByCode, ForgotPassword, Landing footer, Share dialog. Total instances updated: 7 files.
+- ✅ **Dashboard polish** — much more engaging:
+   - New CSS classes: `ss-gradient-text`, `ss-fade-up`, `ss-card-in`, `ss-room-card`, `ss-live-dot`
+   - Hero: animated live-ping next to "Your theater", first-name rendered with gradient text
+   - "New watch room" button gets `ss-shimmer` and a `Sparkles` icon
+   - Room cards: staggered fade-in (60ms per card, capped at 480ms), lift-on-hover, gradient border reveal, participant chip glows purple when count > 0 with a live-ping dot, "Enter room" button gets shimmer
+   - Floating orbs behind the whole dashboard (70% opacity)
+
 ## Prioritized Backlog
 ### P0 (blocking, none)
 _None_

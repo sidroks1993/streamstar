@@ -103,6 +103,73 @@ h1, h2, h3, h4, h5, h6, .font-display {
 /* Global: give every button a slight lift on active */
 button:active { transform: translateY(1px); }
 
+/* Gradient text — for hero-y headlines */
+.ss-gradient-text {
+  background: linear-gradient(90deg, #A855F7 0%, #EC4899 45%, #22D3EE 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+          color: transparent;
+}
+
+/* Fade-in + upward drift for page section entrances */
+@keyframes ss-fade-up {
+  0%   { opacity: 0; transform: translate3d(0, 12px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.ss-fade-up { animation: ss-fade-up 0.55s cubic-bezier(0.22,0.61,0.36,1) both; }
+
+/* Card entrance — used with inline animation-delay for staggered rooms */
+@keyframes ss-card-in {
+  0%   { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.985); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.ss-card-in {
+  animation: ss-card-in 0.55s cubic-bezier(0.22,0.61,0.36,1) both;
+  will-change: opacity, transform;
+}
+
+/* Interactive room-card lift + gradient border on hover */
+.ss-room-card {
+  position: relative;
+  transition: transform 0.35s cubic-bezier(0.22,0.61,0.36,1), border-color 0.25s ease, box-shadow 0.35s ease;
+}
+.ss-room-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.75rem;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(168,85,247,0.6), rgba(236,72,153,0.5), rgba(34,211,238,0.5));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+}
+.ss-room-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -18px rgba(168,85,247,0.35);
+}
+.ss-room-card:hover::before { opacity: 1; }
+
+/* Empty-state / hero glow badge */
+.ss-live-dot {
+  position: relative;
+  display: inline-flex;
+  width: 8px;
+  height: 8px;
+}
+.ss-live-dot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #A855F7;
+  border-radius: 9999px;
+  animation: ss-orb-float 2.4s ease-in-out infinite;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" width="1600" height="400" aria-label="StreamStar full logo">
+  <defs>
+    <linearGradient id="ss-grad-full" x1="0" y1="0" x2="400" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A855F7" />
+      <stop offset="55%" stop-color="#EC4899" />
+      <stop offset="100%" stop-color="#22D3EE" />
+    </linearGradient>
+    <filter id="ss-glow-full" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="8" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <!-- mark -->
+  <g>
+    <path
+      d="M200 20 L230 160 L380 200 L230 240 L200 380 L170 240 L20 200 L170 160 Z"
+      fill="url(#ss-grad-full)"
+      filter="url(#ss-glow-full)"
+    />
+    <path d="M175 150 L270 200 L175 250 Z" fill="#0A0A0A" />
+    <path d="M175 150 L270 200 L175 250 Z" fill="url(#ss-grad-full)" fill-opacity="0.15" />
+    <circle cx="340" cy="80" r="16" fill="#22D3EE" />
+  </g>
+  <!-- wordmark: "StreamStar" -->
+  <text
+    x="440" y="260"
+    font-family="Outfit, 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif"
+    font-size="220"
+    font-weight="600"
+    letter-spacing="-6"
+    fill="#F5F5F5"
+  >StreamStar</text>
+  <!-- copyright glyph -->
+  <text
+    x="1470" y="120"
+    font-family="Outfit, 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif"
+    font-size="60"
+    fill="#22D3EE"
+    fill-opacity="0.85"
+  >©</text>
+</svg>

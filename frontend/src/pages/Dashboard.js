@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import BackgroundLogo from "../components/BackgroundLogo";
 import CursorGlow from "../components/CursorGlow";
+import FloatingOrbs from "../components/FloatingOrbs";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -11,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock, Link2, Hash } from "lucide-react";
+import { Film, Plus, Users, Radio, Copy, LogIn, ShieldQuestion, Clock, Link2, Hash, Sparkles } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -98,13 +99,22 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#050505] text-white relative overflow-hidden">
       <CursorGlow />
       <BackgroundLogo variant="peek" />
+      <FloatingOrbs className="opacity-70" />
       <Navbar />
       <main className="max-w-7xl mx-auto px-6 lg:px-10 py-12 relative z-10">
         {/* Header */}
-        <div className="flex items-end justify-between flex-wrap gap-6 mb-10">
+        <div className="flex items-end justify-between flex-wrap gap-6 mb-10 ss-fade-up">
           <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-[#A855F7] mb-2">Your theater</div>
-            <h1 className="font-display text-4xl sm:text-5xl tracking-tighter">Hi, {user?.name?.split(" ")[0] || "friend"}.</h1>
+            <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#A855F7] mb-2">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A855F7] opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#A855F7]" />
+              </span>
+              Your theater
+            </div>
+            <h1 className="font-display text-4xl sm:text-5xl tracking-tighter">
+              Hi, <span className="ss-gradient-text">{user?.name?.split(" ")[0] || "friend"}</span>.
+            </h1>
             <p className="text-white/60 mt-2 text-sm max-w-lg">
               {canHost
                 ? "Create a room, share the link, and start streaming a movie from your machine."
@@ -115,8 +125,8 @@ export default function Dashboard() {
             {canHost ? (
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="create-room-btn">
-                    <Plus className="w-4 h-4 mr-2" /> New watch room
+                  <Button className="ss-shimmer bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="create-room-btn">
+                    <Sparkles className="w-4 h-4 mr-2" /> New watch room
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="bg-[#0E0E0E] border-white/10 text-white sm:max-w-md">
@@ -232,14 +242,31 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {rooms.map((r) => (
-              <div key={r.room_id} className="group rounded-xl border border-white/10 bg-[#0E0E0E] p-5 hover:border-[#A855F7]/40 transition-colors" data-testid={`room-card-${r.room_id}`}>
+            {rooms.map((r, idx) => (
+              <div
+                key={r.room_id}
+                className="ss-room-card ss-card-in group rounded-xl border border-white/10 bg-[#0E0E0E] p-5"
+                style={{ animationDelay: `${Math.min(idx * 60, 480)}ms` }}
+                data-testid={`room-card-${r.room_id}`}
+              >
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="font-display text-lg leading-tight">{r.name}</h3>
+                    <h3 className="font-display text-lg leading-tight group-hover:ss-gradient-text transition-colors">{r.name}</h3>
                     <div className="text-xs text-white/40 mt-1">Hosted by {r.host_name || "—"}</div>
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-full bg-white/5 border border-white/10 text-white/60 flex items-center gap-1">
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1.5 ${
+                      r.participant_count > 0
+                        ? "bg-[#A855F7]/10 border-[#A855F7]/40 text-[#A855F7]"
+                        : "bg-white/5 border-white/10 text-white/60"
+                    }`}
+                  >
+                    {r.participant_count > 0 && (
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A855F7] opacity-75" />
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#A855F7]" />
+                      </span>
+                    )}
                     <Users className="w-3 h-3" /> {r.participant_count}
                   </span>
                 </div>
@@ -291,7 +318,7 @@ export default function Dashboard() {
                 )}
 
                 <Link to={`/watch/${r.room_id}`}>
-                  <Button className="w-full bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid={`join-room-${r.room_id}`}>
+                  <Button className="ss-shimmer w-full bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid={`join-room-${r.room_id}`}>
                     {r.code ? "Enter room" : "Knock to join"}
                   </Button>
                 </Link>

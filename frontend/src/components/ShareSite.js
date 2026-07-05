@@ -64,7 +64,7 @@ export default function ShareSite({ shareUrl }) {
         >
           <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
             <Share2 className="w-4 h-4 text-[#A855F7]" />
-            <div className="font-display text-sm">Share StreamStar</div>
+            <div className="font-display text-sm">Share © StreamStar</div>
           </div>
           <div className="p-3 space-y-2">
             <button
