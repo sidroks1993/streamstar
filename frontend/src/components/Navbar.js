@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Logo from "./Logo";
 import { Film, LogOut, ShieldCheck } from "lucide-react";
 import { Button } from "./ui/button";
 
@@ -17,7 +18,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 bg-[#050505]/80 backdrop-blur-xl border-b border-white/10">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group" data-testid="nav-logo">
-          <Film className="w-5 h-5 text-[#E50914] group-hover:rotate-6 transition-transform" />
+          <Film className="w-5 h-5 text-[#A855F7] group-hover:rotate-6 transition-transform" />
           <span className="font-display text-lg tracking-tight">StreamStar</span>
         </Link>
         <nav className="flex items-center gap-2">
@@ -50,7 +51,7 @@ export default function Navbar() {
                 <Button variant="ghost" className="text-white/80 hover:text-white hover:bg-white/5">Sign in</Button>
               </Link>
               <Link to="/register" data-testid="nav-register">
-                <Button className="bg-[#E50914] hover:bg-[#F40612] text-white">Get started</Button>
+                <Button className="bg-[#A855F7] hover:bg-[#C026D3] text-white">Get started</Button>
               </Link>
             </>
           )}

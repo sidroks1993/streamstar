@@ -34,7 +34,16 @@
 - ✅ Backend testing: 12/12 endpoints passed
 - ✅ Frontend testing: login → dashboard → create room → watch room → chat over WebSocket → admin toggle all verified end-to-end
 
-## Iteration 3 (2026-02-05)
+## Iteration 4 (2026-02-05)
+- ✅ **Neon purple palette**: primary `#A855F7`, hover `#C026D3`, accent `#EC4899` / cyan `#22D3EE`. All red replaced across the app; CSS vars + Tailwind ring updated.
+- ✅ **Original logo** (`/app/frontend/src/components/Logo.js`): four-point starburst with inner play triangle + orbiting cyan spark, rendered via SVG gradient (purple → pink → cyan). Original geometry — no derivative resemblance to known brand marks.
+- ✅ **Landing marketing** now highlights HD recording: hero subheading + "Record in HD, keep forever" feature card explicitly mentions saving the whole session as a `.webm` file, with host-approved viewer recording.
+- ✅ **Viewer request-to-record**: viewers see a "Request record" button in the top bar of a watch room. Sends `record_request` via WS to the host; host gets a native confirm dialog + `record_response` broadcast. On approve, viewer's `MediaRecorder` starts on the incoming remote stream and saves the HD file on their computer.
+- ✅ **Resend email integration** (`RESEND_API_KEY` in `/app/backend/.env`; sender `onboarding@resend.dev`):
+  - Registration sends verification email; login blocked with clear "please check inbox and spam folder" message until verified
+  - `GET /api/auth/verify?token=...`
+  - `POST /api/auth/forgot-password` + `POST /api/auth/reset-password` (token-based, 1h expiry) + `/forgot-password` frontend page + link on Login
+- ⏸ **YouTube URL support** — deferred to next iteration (WS `yt_state` relay hook already wired on backend, frontend player integration pending)
 - ✅ Admin password rotated to `streamstar@1` (see test_credentials.md); backend auto-updates hash on startup
 - ✅ Register: **show/hide password toggle** + **confirm password** field with live match/mismatch indicator; submit disabled until match+valid
 - ✅ Login: show/hide password toggle

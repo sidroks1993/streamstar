@@ -6,6 +6,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { formatApiError } from "../lib/api";
+import Logo from "../components/Logo";
 import { Film, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
@@ -40,7 +41,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-[#050505] px-6">
       <div className="w-full max-w-md">
         <Link to="/" className="flex items-center gap-2 mb-8" data-testid="login-logo">
-          <Film className="w-5 h-5 text-[#E50914]" />
+          <Logo size={22} />
           <span className="font-display text-lg">StreamStar</span>
         </Link>
         <h1 className="font-display text-3xl mb-2 tracking-tight">Sign in</h1>
@@ -66,7 +67,7 @@ export default function Login() {
               </button>
             </div>
           </div>
-          <Button type="submit" disabled={loading} className="w-full bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="login-submit">
+          <Button type="submit" disabled={loading} className="w-full bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="login-submit">
             {loading ? "Signing in…" : "Sign in"}
           </Button>
         </form>
@@ -84,7 +85,10 @@ export default function Login() {
         </Button>
 
         <p className="text-sm text-white/60 mt-8 text-center">
-          No account yet? <Link to="/register" className="text-[#E50914] hover:text-[#F40612]" data-testid="link-register">Create one</Link>
+          No account yet? <Link to="/register" className="text-[#A855F7] hover:text-[#C026D3]" data-testid="link-register">Create one</Link>
+        </p>
+        <p className="text-xs text-white/40 mt-2 text-center">
+          <Link to="/forgot-password" className="hover:text-white" data-testid="link-forgot">Forgot password?</Link>
         </p>
       </div>
     </div>

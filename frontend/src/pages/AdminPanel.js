@@ -104,8 +104,8 @@ export default function AdminPanel() {
       <Navbar />
       <main className="max-w-7xl mx-auto px-6 lg:px-10 py-12">
         <div className="flex items-center gap-3 mb-2">
-          <ShieldCheck className="w-6 h-6 text-[#E50914]" />
-          <div className="text-xs uppercase tracking-[0.2em] text-[#E50914]">Super admin</div>
+          <ShieldCheck className="w-6 h-6 text-[#A855F7]" />
+          <div className="text-xs uppercase tracking-[0.2em] text-[#A855F7]">Super admin</div>
         </div>
         <h1 className="font-display text-4xl tracking-tighter mb-2">Command center</h1>
         <p className="text-white/60 text-sm mb-8 max-w-2xl">
@@ -130,7 +130,7 @@ export default function AdminPanel() {
             <div className="text-xs uppercase tracking-widest text-white/40">Notifications</div>
             <div className="font-display text-3xl mt-1 flex items-center gap-2" data-testid="stat-notifs">
               {unreadCount}
-              {unreadCount > 0 && <span className="w-2 h-2 rounded-full bg-[#E50914] animate-pulse" />}
+              {unreadCount > 0 && <span className="w-2 h-2 rounded-full bg-[#A855F7] animate-pulse" />}
             </div>
           </div>
         </div>
@@ -139,7 +139,7 @@ export default function AdminPanel() {
         <div className="rounded-xl border border-white/10 bg-[#0E0E0E] mb-8">
           <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-[#E50914]" />
+              <Bell className="w-4 h-4 text-[#A855F7]" />
               <h2 className="font-display text-lg">Recent activity</h2>
             </div>
             <div className="flex items-center gap-2">
@@ -153,7 +153,7 @@ export default function AdminPanel() {
             ) : notifs.slice(0, 20).map((n) => (
               <div key={n.id} className={`px-6 py-3 border-b border-white/5 flex items-start justify-between gap-4 ${!n.read ? "bg-white/[0.02]" : ""}`} data-testid={`notif-${n.id}`}>
                 <div className="flex items-start gap-3 min-w-0">
-                  {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-[#E50914] mt-2 shrink-0" />}
+                  {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-[#A855F7] mt-2 shrink-0" />}
                   <div className="min-w-0">
                     <div className="text-sm">{n.message}</div>
                     <div className="text-[11px] text-white/40 mt-0.5">{fmt(n.created_at)} · {n.type}</div>
@@ -203,7 +203,7 @@ export default function AdminPanel() {
               <div className="col-span-2">
                 <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border ${
                   u.role === "super_admin"
-                    ? "bg-[#E50914]/10 border-[#E50914]/30 text-[#E50914]"
+                    ? "bg-[#A855F7]/10 border-[#A855F7]/30 text-[#A855F7]"
                     : u.role === "host"
                     ? "bg-white/10 border-white/20 text-white"
                     : "bg-white/5 border-white/10 text-white/60"
@@ -230,7 +230,7 @@ export default function AdminPanel() {
                 )}
                 {u.role !== "super_admin" && (
                   <Button variant="ghost" size="sm" onClick={() => deleteUser(u)}
-                    className="text-[#E50914]/80 hover:text-[#E50914] hover:bg-[#E50914]/10" data-testid={`delete-user-${u.user_id}`}>
+                    className="text-[#A855F7]/80 hover:text-[#A855F7] hover:bg-[#A855F7]/10" data-testid={`delete-user-${u.user_id}`}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 )}
@@ -245,7 +245,7 @@ export default function AdminPanel() {
         <DialogContent className="bg-[#0E0E0E] border-white/10 text-white sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl flex items-center gap-2">
-              <KeyRound className="w-5 h-5 text-[#E50914]" /> Reset password
+              <KeyRound className="w-5 h-5 text-[#A855F7]" /> Reset password
             </DialogTitle>
             <DialogDescription className="text-white/60 text-sm">
               Set a new password for <span className="text-white">{resetUser?.email}</span>. They will need to sign in with the new password.
@@ -259,7 +259,7 @@ export default function AdminPanel() {
               data-testid="reset-pw-input" />
           </div>
           <DialogFooter>
-            <Button onClick={submitReset} className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="reset-pw-submit">
+            <Button onClick={submitReset} className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="reset-pw-submit">
               Reset password
             </Button>
           </DialogFooter>

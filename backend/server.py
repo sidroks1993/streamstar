@@ -14,6 +14,7 @@ from typing import Optional, Dict, Set, List
 import bcrypt
 import jwt
 import httpx
+import resend
 from fastapi import (
     FastAPI,
     APIRouter,
@@ -36,6 +37,38 @@ DB_NAME = os.environ["DB_NAME"]
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_MINUTES = 60 * 24 * 7  # 7 days for simplicity
+
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+APP_BASE_URL = os.environ.get("APP_BASE_URL", "")
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+async def _send_mail(to: str, subject: str, html: str) -> bool:
+    if not RESEND_API_KEY:
+        return False
+    try:
+        await asyncio.to_thread(resend.Emails.send, {
+            "from": f"StreamStar <{SENDER_EMAIL}>",
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        })
+        return True
+    except Exception as e:
+        logging.getLogger("streamstar").warning(f"resend failed: {e}")
+        return False
+
+def _email_template(title: str, body_html: str, cta_url: str = "", cta_label: str = "") -> str:
+    cta = f'<a href="{cta_url}" style="display:inline-block;background:#A855F7;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">{cta_label}</a>' if cta_url else ""
+    return f"""<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0A0A0A;color:#fff;padding:40px 20px">
+<div style="max-width:520px;margin:auto;background:#111;border:1px solid #222;border-radius:14px;padding:36px">
+<div style="font-size:22px;font-weight:700;background:linear-gradient(90deg,#A855F7,#EC4899,#22D3EE);-webkit-background-clip:text;background-clip:text;color:transparent">★ StreamStar</div>
+<h1 style="margin:16px 0 12px;font-size:24px">{title}</h1>
+<div style="color:#bbb;line-height:1.6;font-size:15px">{body_html}</div>
+<div style="margin:28px 0">{cta}</div>
+<div style="color:#666;font-size:12px;margin-top:24px">If you didn't request this, you can ignore this email.</div>
+</div></div>"""
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -240,6 +273,8 @@ async def register(body: RegisterIn, response: Response):
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email already registered")
     user_id = f"user_{uuid.uuid4().hex[:12]}"
+    verify_token = uuid.uuid4().hex
+    email_verified = not bool(RESEND_API_KEY)  # skip verification if no email provider
     doc = {
         "user_id": user_id,
         "email": email,
@@ -248,9 +283,23 @@ async def register(body: RegisterIn, response: Response):
         "role": "viewer",
         "can_host": False,
         "auth_provider": "email",
+        "email_verified": email_verified,
+        "verify_token": verify_token,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
+    # Send verification email
+    if RESEND_API_KEY and APP_BASE_URL:
+        link = f"{APP_BASE_URL}/verify?token={verify_token}"
+        html = _email_template(
+            "Confirm your email",
+            f"Welcome to StreamStar, {body.name}! Please confirm your email to start creating watch parties and recording sessions in HD.",
+            link, "Verify my email",
+        )
+        asyncio.create_task(_send_mail(email, "Confirm your StreamStar email", html))
+    if not email_verified:
+        # Don't auto-login until verified
+        return user_to_out(doc)
     token = create_access_token(user_id)
     _set_cookie(response, "access_token", token, days=7)
     return user_to_out(doc)
@@ -261,6 +310,8 @@ async def login(body: LoginIn, response: Response):
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if RESEND_API_KEY and not user.get("email_verified", True):
+        raise HTTPException(status_code=403, detail="Please verify your email. We sent a confirmation link — check your inbox (and spam folder).")
     # Track login
     now_iso = datetime.now(timezone.utc).isoformat()
     await db.users.update_one(
@@ -281,6 +332,53 @@ async def logout(response: Response, request: Request):
         await db.user_sessions.delete_one({"session_token": token})
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("session_token", path="/")
+    return {"ok": True}
+
+@api.get("/auth/verify")
+async def verify_email(token: str):
+    user = await db.users.find_one({"verify_token": token}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"email_verified": True}, "$unset": {"verify_token": ""}})
+    return {"ok": True, "email": user["email"]}
+
+class ForgotIn(BaseModel):
+    email: EmailStr
+
+@api.post("/auth/forgot-password")
+async def forgot_password(body: ForgotIn):
+    email = body.email.lower().strip()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    # Always return OK to avoid email enumeration
+    if user and RESEND_API_KEY and APP_BASE_URL:
+        token = uuid.uuid4().hex
+        expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"reset_token": token, "reset_expires": expires}})
+        link = f"{APP_BASE_URL}/reset-password?token={token}"
+        html = _email_template(
+            "Reset your password",
+            f"Hi {user.get('name','there')}, tap the button below to choose a new password. Link expires in 1 hour.",
+            link, "Reset password",
+        )
+        asyncio.create_task(_send_mail(email, "Reset your StreamStar password", html))
+    return {"ok": True}
+
+class ResetIn(BaseModel):
+    token: str
+    new_password: str = Field(min_length=6)
+
+@api.post("/auth/reset-password")
+async def reset_password_via_token(body: ResetIn):
+    user = await db.users.find_one({"reset_token": body.token}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired link")
+    exp = user.get("reset_expires")
+    if exp and datetime.fromisoformat(exp) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Link has expired")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"password_hash": hash_password(body.new_password)}, "$unset": {"reset_token": "", "reset_expires": ""}},
+    )
     return {"ok": True}
 
 @api.get("/auth/me", response_model=UserOut)
@@ -678,6 +776,30 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
                         "type": "request_stream",
                         "from": user_id,
                     })
+            elif mtype == "record_request":
+                # Viewer asks the host for permission to record
+                if room.get("host_id"):
+                    await _send_to(room_id, room["host_id"], {
+                        "type": "record_request",
+                        "from": user_id,
+                        "name": user.get("name"),
+                    })
+            elif mtype == "record_response":
+                # Host approves/denies a viewer's record request
+                if not is_host:
+                    continue
+                target = msg.get("to")
+                if not target:
+                    continue
+                await _send_to(room_id, target, {
+                    "type": "record_response",
+                    "approved": bool(msg.get("approved")),
+                })
+            elif mtype == "yt_state":
+                # Host broadcasts YouTube playback state (id, playing, currentTime)
+                if not is_host:
+                    continue
+                await _broadcast(room_id, {"type": "yt_state", "state": msg.get("state")}, exclude=user_id)
             else:
                 # Unknown -> ignore
                 pass

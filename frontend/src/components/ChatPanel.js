@@ -29,7 +29,7 @@ export default function ChatPanel({
       {/* Header */}
       <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-[#E50914]" />
+          <MessageSquare className="w-4 h-4 text-[#A855F7]" />
           <span className="font-display text-sm uppercase tracking-[0.2em]">Chat</span>
         </div>
         <span className="text-xs text-white/40" data-testid="participant-count">{participants.length} watching</span>
@@ -41,7 +41,7 @@ export default function ChatPanel({
           const muted = mutedIds?.includes(p.user_id);
           const chip = (
             <span className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 ${
-              p.is_host ? "border-[#E50914]/40 bg-[#E50914]/10 text-[#E50914]"
+              p.is_host ? "border-[#A855F7]/40 bg-[#A855F7]/10 text-[#A855F7]"
                         : "border-white/10 bg-white/5 text-white/70"
             }`}>
               {p.is_host ? "★ " : ""}{p.name}{p.user_id === myUserId ? " (you)" : ""}
@@ -71,7 +71,7 @@ export default function ChatPanel({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => onKick(p.user_id)}
-                    className="focus:bg-[#E50914]/20 focus:text-[#E50914] text-[#E50914]"
+                    className="focus:bg-[#A855F7]/20 focus:text-[#A855F7] text-[#A855F7]"
                     data-testid={`kick-${p.user_id}`}
                   >
                     <UserX className="w-4 h-4 mr-2" /> Kick from room
@@ -96,7 +96,7 @@ export default function ChatPanel({
                 <div className="text-[11px] text-white/40 mb-1">{isSelf ? "You" : m.name}</div>
                 <div className={`text-sm px-3 py-2 rounded-2xl max-w-[85%] ${
                   isSelf
-                    ? "bg-[#E50914]/20 border border-[#E50914]/30 rounded-tr-sm text-white"
+                    ? "bg-[#A855F7]/20 border border-[#A855F7]/30 rounded-tr-sm text-white"
                     : "bg-white/10 rounded-tl-sm text-white"
                 }`}>
                   {m.text}
@@ -122,7 +122,7 @@ export default function ChatPanel({
         <button
           type="submit"
           disabled={iAmMuted}
-          className="bg-[#E50914] hover:bg-[#F40612] text-white p-2 rounded-md transition-colors disabled:opacity-50"
+          className="bg-[#A855F7] hover:bg-[#C026D3] text-white p-2 rounded-md transition-colors disabled:opacity-50"
           data-testid="chat-send"
         >
           <Send className="w-4 h-4" />

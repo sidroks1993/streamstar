@@ -137,6 +137,38 @@ export default function WatchRoom() {
         case "chat_blocked":
           toast.error(msg.reason || "Message blocked");
           break;
+        case "record_request":
+          // Host receives a viewer's request to record
+          {
+            const approve = window.confirm(`${msg.name || "A viewer"} wants to record this session. Allow?`);
+            send({ type: "record_response", to: msg.from, approved: approve });
+            toast(approve ? "Recording permission granted" : "Recording denied");
+          }
+          break;
+        case "record_response":
+          // Viewer receives host's decision
+          if (msg.approved) {
+            const stream = remoteStream;
+            if (stream) {
+              const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : "video/webm";
+              const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
+              recordedChunksRef.current = [];
+              rec.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
+              rec.onstop = () => {
+                const blob = new Blob(recordedChunksRef.current, { type: mime });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url;
+                a.download = `streamstar-${Date.now()}.webm`; document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                setRecording(false); toast.success("Recording saved");
+              };
+              rec.start(1000); recorderRef.current = rec; setRecording(true);
+              toast.success("Host approved — recording HD stream to your computer");
+            }
+          } else {
+            toast.error("Host denied the record request");
+          }
+          break;
         case "kicked":
           toast.error("You were removed from the room by the host");
           setTimeout(() => navigate("/dashboard"), 800);
@@ -240,6 +272,14 @@ export default function WatchRoom() {
   };
 
   const toggleRecording = () => {
+    // Host: local recording of own stream. Viewer: ask host first.
+    if (!isHost) {
+      if (recording) { try { recorderRef.current?.stop(); } catch { /* noop */ } return; }
+      if (!remoteStream) { toast.error("Wait for the host to start streaming first."); return; }
+      send({ type: "record_request" });
+      toast("Recording request sent to host…");
+      return;
+    }
     if (recording) {
       try { recorderRef.current?.stop(); } catch { /* ignore */ }
       return;
@@ -310,21 +350,21 @@ export default function WatchRoom() {
             <div className="font-display text-lg tracking-tight truncate">{room.name}</div>
             <div className="text-[11px] text-white/40 truncate">
               Hosted by {room.host_name || "—"} · {room.is_public ? "Public" : "Private"} · ID {room.room_id}
-              {isHost && <span className="ml-2 text-[#E50914]">You&apos;re the host</span>}
+              {isHost && <span className="ml-2 text-[#A855F7]">You&apos;re the host</span>}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isHost && (
+          {(isHost || remoteStream) && (
             <Button
               onClick={toggleRecording}
               variant="ghost"
-              className={`${recording ? "text-[#E50914]" : "text-white/70"} hover:text-white hover:bg-white/5`}
+              className={`${recording ? "text-[#EC4899]" : "text-white/70"} hover:text-white hover:bg-white/5`}
               data-testid="record-btn"
-              title={recording ? "Stop recording" : "Start recording"}
+              title={isHost ? (recording ? "Stop recording" : "Start recording") : (recording ? "Stop recording" : "Request to record")}
             >
-              {recording ? <Square className="w-4 h-4 mr-2 fill-current" /> : <Circle className="w-4 h-4 mr-2 fill-current text-[#E50914]" />}
-              {recording ? "Stop rec" : "Record"}
+              {recording ? <Square className="w-4 h-4 mr-2 fill-current" /> : <Circle className="w-4 h-4 mr-2 fill-current text-[#A855F7]" />}
+              {recording ? "Stop rec" : isHost ? "Record" : "Request record"}
             </Button>
           )}
           <Button onClick={copyInvite} variant="ghost" className="text-white/70 hover:text-white hover:bg-white/5" data-testid="copy-invite-btn">

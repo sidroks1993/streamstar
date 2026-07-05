@@ -117,7 +117,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex items-end justify-between flex-wrap gap-6 mb-10">
           <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-[#E50914] mb-2">Your theater</div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[#A855F7] mb-2">Your theater</div>
             <h1 className="font-display text-4xl sm:text-5xl tracking-tighter">Hi, {user?.name?.split(" ")[0] || "friend"}.</h1>
             <p className="text-white/60 mt-2 text-sm max-w-lg">
               {canHost
@@ -129,7 +129,7 @@ export default function Dashboard() {
             {canHost ? (
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="create-room-btn">
+                  <Button className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="create-room-btn">
                     <Plus className="w-4 h-4 mr-2" /> New watch room
                   </Button>
                 </DialogTrigger>
@@ -155,7 +155,7 @@ export default function Dashboard() {
                   </div>
                   <DialogFooter>
                     <Button onClick={create} disabled={creating}
-                      className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="new-room-submit">
+                      className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="new-room-submit">
                       {creating ? "Creating…" : "Create & enter"}
                     </Button>
                   </DialogFooter>
@@ -164,14 +164,14 @@ export default function Dashboard() {
             ) : (
               <Dialog open={reqOpen} onOpenChange={setReqOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="create-room-btn">
+                  <Button className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="create-room-btn">
                     <Plus className="w-4 h-4 mr-2" /> New watch room
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="bg-[#0E0E0E] border-white/10 text-white sm:max-w-md" data-testid="request-host-dialog">
                   <DialogHeader>
                     <DialogTitle className="font-display text-2xl flex items-center gap-2">
-                      <ShieldQuestion className="w-5 h-5 text-[#E50914]" /> Request host access
+                      <ShieldQuestion className="w-5 h-5 text-[#A855F7]" /> Request host access
                     </DialogTitle>
                     <DialogDescription className="text-white/60 text-sm pt-2">
                       Only approved hosts can stream movies. Request access and the super admin will be notified. If they don&apos;t respond in <span className="text-white">60 seconds</span>, you&apos;ll be auto-approved.
@@ -180,12 +180,12 @@ export default function Dashboard() {
                   {reqStatus === "pending" ? (
                     <div className="rounded-md border border-white/10 bg-black/30 p-4">
                       <div className="flex items-center gap-2 text-sm">
-                        <Clock className="w-4 h-4 text-[#E50914]" />
+                        <Clock className="w-4 h-4 text-[#A855F7]" />
                         <span>Request sent. Auto-approving in</span>
                         <span className="font-mono text-white text-lg tabular-nums" data-testid="countdown">{secondsLeft}s</span>
                       </div>
                       <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#E50914] transition-all duration-1000" style={{ width: `${((60 - secondsLeft) / 60) * 100}%` }} />
+                        <div className="h-full bg-[#A855F7] transition-all duration-1000" style={{ width: `${((60 - secondsLeft) / 60) * 100}%` }} />
                       </div>
                     </div>
                   ) : reqStatus === "approved" ? (
@@ -197,7 +197,7 @@ export default function Dashboard() {
                     {!reqStatus && (
                       <Button
                         onClick={requestHost}
-                        className="bg-[#E50914] hover:bg-[#F40612] text-white"
+                        className="bg-[#A855F7] hover:bg-[#C026D3] text-white"
                         data-testid="request-host-submit"
                       >
                         Request host access
@@ -205,7 +205,7 @@ export default function Dashboard() {
                     )}
                     {reqStatus === "approved" && (
                       <Button onClick={() => { setReqOpen(false); setReqStatus(null); }}
-                        className="bg-[#E50914] hover:bg-[#F40612] text-white" data-testid="request-close-btn">
+                        className="bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid="request-close-btn">
                         Great, let&apos;s go
                       </Button>
                     )}
@@ -234,7 +234,7 @@ export default function Dashboard() {
         {/* Public rooms */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-2xl tracking-tight flex items-center gap-2">
-            <Radio className="w-5 h-5 text-[#E50914]" /> Public rooms
+            <Radio className="w-5 h-5 text-[#A855F7]" /> Public rooms
           </h2>
           <button onClick={load} className="text-xs text-white/50 hover:text-white uppercase tracking-widest" data-testid="refresh-rooms">
             Refresh
@@ -263,7 +263,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Link to={`/watch/${r.room_id}`} className="flex-1">
-                    <Button className="w-full bg-[#E50914] hover:bg-[#F40612] text-white" data-testid={`join-room-${r.room_id}`}>
+                    <Button className="w-full bg-[#A855F7] hover:bg-[#C026D3] text-white" data-testid={`join-room-${r.room_id}`}>
                       Join room
                     </Button>
                   </Link>

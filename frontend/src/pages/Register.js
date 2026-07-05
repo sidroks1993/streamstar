@@ -6,6 +6,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { formatApiError } from "../lib/api";
+import Logo from "../components/Logo";
 import { Film, Eye, EyeOff, Check, X } from "lucide-react";
 
 export default function Register() {
@@ -53,7 +54,7 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-[#050505] px-6">
       <div className="w-full max-w-md">
         <Link to="/" className="flex items-center gap-2 mb-8">
-          <Film className="w-5 h-5 text-[#E50914]" />
+          <Logo size={22} />
           <span className="font-display text-lg">StreamStar</span>
         </Link>
         <h1 className="font-display text-3xl mb-2 tracking-tight">Create your account</h1>
@@ -86,7 +87,7 @@ export default function Register() {
               </button>
             </div>
             {password.length > 0 && !passwordValid && (
-              <div className="mt-1 text-[11px] text-[#E50914]">At least 6 characters</div>
+              <div className="mt-1 text-[11px] text-[#A855F7]">At least 6 characters</div>
             )}
           </div>
           <div>
@@ -100,16 +101,16 @@ export default function Register() {
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 p-1">
                   {passwordsMatch
                     ? <Check className="w-4 h-4 text-emerald-500" data-testid="pw-match" />
-                    : <X className="w-4 h-4 text-[#E50914]" data-testid="pw-mismatch" />}
+                    : <X className="w-4 h-4 text-[#A855F7]" data-testid="pw-mismatch" />}
                 </div>
               )}
             </div>
             {confirm.length > 0 && !passwordsMatch && (
-              <div className="mt-1 text-[11px] text-[#E50914]">Passwords do not match</div>
+              <div className="mt-1 text-[11px] text-[#A855F7]">Passwords do not match</div>
             )}
           </div>
           <Button type="submit" disabled={loading || !passwordsMatch || !passwordValid}
-            className="w-full bg-[#E50914] hover:bg-[#F40612] text-white disabled:opacity-50"
+            className="w-full bg-[#A855F7] hover:bg-[#C026D3] text-white disabled:opacity-50"
             data-testid="register-submit">
             {loading ? "Creating…" : "Create account"}
           </Button>
@@ -128,7 +129,7 @@ export default function Register() {
         </Button>
 
         <p className="text-sm text-white/60 mt-8 text-center">
-          Already have an account? <Link to="/login" className="text-[#E50914] hover:text-[#F40612]" data-testid="link-login">Sign in</Link>
+          Already have an account? <Link to="/login" className="text-[#A855F7] hover:text-[#C026D3]" data-testid="link-login">Sign in</Link>
         </p>
       </div>
     </div>

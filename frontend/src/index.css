@@ -22,7 +22,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
   letter-spacing: -0.02em;
 }
 
-::selection { background: #E50914; color: #fff; }
+::selection { background: #A855F7; color: #fff; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -46,7 +46,7 @@ input[type="range"].cs-range::-webkit-slider-thumb {
   height: 14px;
   width: 14px;
   border-radius: 999px;
-  background: #E50914;
+  background: #A855F7;
   margin-top: -5px;
   cursor: pointer;
   box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.15);
@@ -61,7 +61,7 @@ input[type="range"].cs-range::-moz-range-thumb {
   width: 14px;
   border: none;
   border-radius: 999px;
-  background: #E50914;
+  background: #A855F7;
   cursor: pointer;
 }
 
@@ -73,7 +73,7 @@ input[type="range"].cs-range::-moz-range-thumb {
     --card-foreground: 0 0% 96%;
     --popover: 0 0% 9%;
     --popover-foreground: 0 0% 96%;
-    --primary: 0 92% 47%;
+    --primary: 271 91% 65%;
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 14%;
     --secondary-foreground: 0 0% 96%;
@@ -85,7 +85,7 @@ input[type="range"].cs-range::-moz-range-thumb {
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 16%;
     --input: 0 0% 16%;
-    --ring: 0 92% 47%;
+    --ring: 271 91% 65%;
     --radius: 0.5rem;
   }
 }

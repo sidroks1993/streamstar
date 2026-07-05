@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import Logo from "../components/Logo";
 import { Film, Users, MessageCircle, Wand2, ShieldCheck, Share2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import Navbar from "../components/Navbar";
@@ -15,8 +16,8 @@ const steps = [
 
 const features = [
   { icon: Users, title: "HD watch parties", desc: "Peer-to-peer WebRTC streams straight from the host — no re-encoding, no re-uploads." },
-  { icon: MessageCircle, title: "Live chat", desc: "Threaded, timestamped messages that slide in beside the screen." },
-  { icon: Wand2, title: "Full playback control", desc: "Quality, speed, volume, PiP, fullscreen — the host drives the whole theater." },
+  { icon: MessageCircle, title: "Live chat & reactions", desc: "Threaded messages, floating emoji reactions, and host controls (kick / mute) — the crowd, curated." },
+  { icon: Wand2, title: "Record in HD, keep forever", desc: "One click and the host saves the entire session in crisp HD to their own machine as a .webm file. Viewers can request to record too — with host approval." },
 ];
 
 export default function Landing() {
@@ -34,19 +35,19 @@ export default function Landing() {
         <div className="relative max-w-7xl mx-auto px-6 lg:px-12 pt-28 pb-32">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-white/70 mb-6" data-testid="hero-badge">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#E50914]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#A855F7]" />
               Movie night, together
             </div>
             <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl tracking-tighter font-medium leading-[0.95]">
-              Watch <span className="text-[#E50914]">anything</span>,
+              Watch <span className="text-[#A855F7]">anything</span>,
               <br /> with <span className="italic text-white/80">anyone</span>.
             </h1>
             <p className="mt-6 text-lg text-white/70 max-w-xl leading-relaxed">
-              StreamStar turns any movie on your machine into a private theater on the web. Stream in HD, chat live, control the room — no uploads, no accounts your friends have to hate.
+              StreamStar turns any movie on your machine into a private theater on the web. Stream in HD, chat live, and <span className="text-white font-medium">record the whole session</span> to keep forever — no uploads, no accounts your friends have to hate.
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <Link to="/register" data-testid="hero-cta-signup">
-                <Button className="bg-[#E50914] hover:bg-[#F40612] text-white px-7 py-6 text-base rounded-md">
+                <Button className="bg-[#A855F7] hover:bg-[#C026D3] text-white px-7 py-6 text-base rounded-md">
                   Create your theater
                 </Button>
               </Link>
@@ -64,7 +65,7 @@ export default function Landing() {
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-24" data-testid="how-to-section">
         <div className="flex items-end justify-between mb-12 flex-wrap gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-[#E50914] mb-3">First time here?</div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[#A855F7] mb-3">First time here?</div>
             <h2 className="font-display text-3xl sm:text-4xl tracking-tight">Here&apos;s how it works</h2>
           </div>
           <p className="text-white/60 max-w-md text-sm">Four steps from empty screen to synchronized movie night. Anyone can watch. Only approved hosts can stream.</p>
@@ -73,7 +74,7 @@ export default function Landing() {
           {steps.map((s, i) => (
             <div key={s.title} className="group rounded-xl border border-white/10 bg-[#0E0E0E] p-6 hover:border-white/20 transition-colors" data-testid={`howto-step-${i}`}>
               <div className="flex items-center justify-between mb-6">
-                <div className="w-10 h-10 rounded-md bg-[#E50914]/10 border border-[#E50914]/30 flex items-center justify-center text-[#E50914]">
+                <div className="w-10 h-10 rounded-md bg-[#A855F7]/10 border border-[#A855F7]/30 flex items-center justify-center text-[#A855F7]">
                   <s.icon className="w-5 h-5" />
                 </div>
                 <span className="font-display text-3xl text-white/10 group-hover:text-white/20 transition-colors">0{i + 1}</span>
@@ -91,7 +92,7 @@ export default function Landing() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {features.map((f) => (
             <div key={f.title} className="rounded-xl border border-white/10 bg-[#0E0E0E] p-8 h-full">
-              <f.icon className="w-6 h-6 text-[#E50914] mb-6" />
+              <f.icon className="w-6 h-6 text-[#A855F7] mb-6" />
               <h3 className="font-display text-xl mb-2">{f.title}</h3>
               <p className="text-sm text-white/60 leading-relaxed">{f.desc}</p>
             </div>

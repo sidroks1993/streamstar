@@ -182,12 +182,12 @@ export default function VideoPlayer({ isHost, onStreamReady, onStreamEnded, remo
       {/* Empty state for host */}
       {isHost && !fileUrl && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-          <div className="w-16 h-16 rounded-full bg-[#E50914]/10 border border-[#E50914]/30 flex items-center justify-center mb-6">
-            <Upload className="w-7 h-7 text-[#E50914]" />
+          <div className="w-16 h-16 rounded-full bg-[#A855F7]/10 border border-[#A855F7]/30 flex items-center justify-center mb-6">
+            <Upload className="w-7 h-7 text-[#A855F7]" />
           </div>
           <h3 className="font-display text-2xl mb-2">Pick a movie to start streaming</h3>
           <p className="text-white/50 text-sm mb-6 max-w-md">Everyone in <span className="text-white">{roomName || "this room"}</span> will see it live. Nothing gets uploaded — the stream goes peer-to-peer.</p>
-          <label className="inline-flex cursor-pointer items-center gap-2 bg-[#E50914] hover:bg-[#F40612] px-6 py-3 rounded-md text-white font-medium transition-colors" data-testid="pick-movie-btn">
+          <label className="inline-flex cursor-pointer items-center gap-2 bg-[#A855F7] hover:bg-[#C026D3] px-6 py-3 rounded-md text-white font-medium transition-colors" data-testid="pick-movie-btn">
             <Upload className="w-4 h-4" />
             Choose video file
             <input type="file" accept="video/*" onChange={onFileChange} className="hidden" data-testid="file-input" />
@@ -198,7 +198,7 @@ export default function VideoPlayer({ isHost, onStreamReady, onStreamEnded, remo
       {/* Empty state for viewer */}
       {!isHost && !remoteStream && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-          <div className="w-3 h-3 rounded-full bg-[#E50914] animate-pulse mb-4" />
+          <div className="w-3 h-3 rounded-full bg-[#A855F7] animate-pulse mb-4" />
           <h3 className="font-display text-xl mb-1">Waiting for host…</h3>
           <p className="text-white/50 text-sm">The stream will start as soon as the host picks a movie.</p>
         </div>
@@ -251,7 +251,7 @@ export default function VideoPlayer({ isHost, onStreamReady, onStreamEnded, remo
                 <DropdownMenuSeparator className="bg-white/10" />
                 {SPEEDS.map((s) => (
                   <DropdownMenuItem key={s} onClick={() => setSpeed(s)}
-                    className={`focus:bg-white/10 focus:text-white ${speed === s ? "text-[#E50914]" : ""}`}
+                    className={`focus:bg-white/10 focus:text-white ${speed === s ? "text-[#A855F7]" : ""}`}
                     data-testid={`speed-${s}`}>
                     {s}x
                   </DropdownMenuItem>
@@ -270,7 +270,7 @@ export default function VideoPlayer({ isHost, onStreamReady, onStreamEnded, remo
                 <DropdownMenuSeparator className="bg-white/10" />
                 {["Source", "1080p", "720p", "480p", "360p"].map((q) => (
                   <DropdownMenuItem key={q} onClick={() => applyQuality(q)}
-                    className={`focus:bg-white/10 focus:text-white ${quality === q ? "text-[#E50914]" : ""}`}
+                    className={`focus:bg-white/10 focus:text-white ${quality === q ? "text-[#A855F7]" : ""}`}
                     data-testid={`quality-${q}`}>
                     {q}
                   </DropdownMenuItem>
