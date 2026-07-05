@@ -180,12 +180,8 @@ export default function Dashboard() {
                   {reqStatus === "pending" ? (
                     <div className="rounded-md border border-white/10 bg-black/30 p-4">
                       <div className="flex items-center gap-2 text-sm">
-                        <Clock className="w-4 h-4 text-[#A855F7]" />
-                        <span>Request sent. Auto-approving in</span>
-                        <span className="font-mono text-white text-lg tabular-nums" data-testid="countdown">{secondsLeft}s</span>
-                      </div>
-                      <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#A855F7] transition-all duration-1000" style={{ width: `${((60 - secondsLeft) / 60) * 100}%` }} />
+                        <Clock className="w-4 h-4 text-[#A855F7] animate-pulse" />
+                        <span>Request sent to the super admin. You&apos;ll be notified as soon as it&apos;s reviewed.</span>
                       </div>
                     </div>
                   ) : reqStatus === "approved" ? (

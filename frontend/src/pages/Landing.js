@@ -86,6 +86,29 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Posters marquee */}
+      <section className="border-t border-white/10 overflow-hidden">
+        <div className="py-6 flex gap-4 animate-[cs-marquee_40s_linear_infinite]" style={{ width: "max-content" }}>
+          {[
+            "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400",
+            "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?w=400",
+            "https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=400",
+            "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400",
+            "https://images.unsplash.com/photo-1518929458119-e5bf444c30f4?w=400",
+            "https://images.unsplash.com/photo-1524712245354-2c4e5e7121c0?w=400",
+          ].concat([
+            "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400",
+            "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?w=400",
+            "https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=400",
+          ]).map((src, i) => (
+            <div key={i} className="w-52 h-72 rounded-xl overflow-hidden border border-white/10 shrink-0 hover:scale-105 transition-transform duration-500 shadow-lg shadow-[#A855F7]/10">
+              <img src={src} alt="" className="w-full h-full object-cover" />
+            </div>
+          ))}
+        </div>
+        <style>{`@keyframes cs-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
+      </section>
+
       {/* Features */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-24 border-t border-white/10">
         <h2 className="font-display text-3xl sm:text-4xl tracking-tight mb-12 max-w-xl">Everything you need for the perfect watch party.</h2>

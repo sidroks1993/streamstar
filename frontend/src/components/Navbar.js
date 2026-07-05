@@ -18,7 +18,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 bg-[#050505]/80 backdrop-blur-xl border-b border-white/10">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group" data-testid="nav-logo">
-          <Film className="w-5 h-5 text-[#A855F7] group-hover:rotate-6 transition-transform" />
+          <Logo size={22} className="group-hover:rotate-12 transition-transform duration-300" />
           <span className="font-display text-lg tracking-tight">StreamStar</span>
         </Link>
         <nav className="flex items-center gap-2">

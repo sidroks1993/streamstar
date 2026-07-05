@@ -100,4 +100,14 @@ input[type="range"].cs-range::-moz-range-thumb {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.cs-rise { animation: cs-rise .28s ease-out both; }
+/* Global button hover shine */
+button, .btn { transition: transform .18s ease, box-shadow .25s ease; }
+button:active { transform: scale(0.97); }
+.cs-glow:hover { box-shadow: 0 0 24px rgba(168, 85, 247, 0.35); }
+
+@keyframes cs-pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(168,85,247,0.6); }
+  70% { box-shadow: 0 0 0 12px rgba(168,85,247,0); }
+  100% { box-shadow: 0 0 0 0 rgba(168,85,247,0); }
+}
+.cs-pulse { animation: cs-pulse-ring 2s infinite; }
