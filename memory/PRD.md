@@ -34,7 +34,9 @@
 - ✅ Backend testing: 12/12 endpoints passed
 - ✅ Frontend testing: login → dashboard → create room → watch room → chat over WebSocket → admin toggle all verified end-to-end
 
-## Iteration 4 (2026-02-05)
+## Iteration 5 (2026-02-05)
+- ✅ **Resend verification email button on login failure**: backend endpoint `POST /api/auth/resend-verification` (rate-safe, returns `{ok:true}` regardless to prevent enumeration); frontend shows a purple banner + "Resend verification email" button whenever login returns the "please verify" 403 error.
+- ⏸ **DNS-verified sender for production** — deferred. User does not own a domain yet. Current sender `onboarding@resend.dev` is fine for beta (~100 emails/day). When user buys a domain (Namecheap/Cloudflare ~$10/yr), the switch is a single-line env change: update `SENDER_EMAIL` in `/app/backend/.env` after verifying SPF/DKIM/DMARC/Return-Path DNS records in the Resend dashboard.
 - ✅ **Neon purple palette**: primary `#A855F7`, hover `#C026D3`, accent `#EC4899` / cyan `#22D3EE`. All red replaced across the app; CSS vars + Tailwind ring updated.
 - ✅ **Original logo** (`/app/frontend/src/components/Logo.js`): four-point starburst with inner play triangle + orbiting cyan spark, rendered via SVG gradient (purple → pink → cyan). Original geometry — no derivative resemblance to known brand marks.
 - ✅ **Landing marketing** now highlights HD recording: hero subheading + "Record in HD, keep forever" feature card explicitly mentions saving the whole session as a `.webm` file, with host-approved viewer recording.
