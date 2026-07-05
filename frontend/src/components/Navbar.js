@@ -2,8 +2,9 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Logo from "./Logo";
-import { Film, LogOut, ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck } from "lucide-react";
 import { Button } from "./ui/button";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -31,6 +32,7 @@ export default function Navbar() {
           )}
           {user ? (
             <>
+              <NotificationBell />
               <Link to="/dashboard" className="hidden sm:flex items-center gap-2 mr-2 hover:opacity-80" data-testid="nav-user">
                 {user.picture ? (
                   <img src={user.picture} alt="" className="w-7 h-7 rounded-full object-cover" />

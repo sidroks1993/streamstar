@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 7 backend + frontend testing. All 11 backend pytest cases PASS (auth, rooms code visibility, room_visits code-appearance, notifications /me + read + read-all, events RBAC, grant-host notification+event, WebSocket knock flow both admit + deny). Frontend mostly works, but a CRITICAL frontend gap was found: viewer Dashboard does NOT honor backend's `code=null` — share-block and 'Enter room' text render unconditionally.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Dashboard room card share-block",
+        "issue": "Share-block (code + link) is rendered UNCONDITIONALLY for every room. It is NOT wrapped in `{r.code && (...)}`. As a result, a fresh viewer who has never joined a room STILL sees the room code and link on every card, using `r.room_id.toUpperCase()` directly. This breaks the code-visibility requirement — backend returns `code=null` for viewers but the UI ignores it.",
+        "selector": "[data-testid^='share-block-']",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "Dashboard 'Enter room' button",
+        "issue": "The join-room button text is always 'Enter room'. The spec requires 'Knock to join' when `r.code` is null (i.e. the user hasn't joined the room yet). Current code has no conditional based on `r.code`.",
+        "selector": "[data-testid^='join-room-']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter7.xml"
+  ],
+  "action_items": [
+    "In /app/frontend/src/pages/Dashboard.js (lines ~243-285), wrap the share-block <div> in `{r.code && (...)}` so it only renders when the backend exposes the code.",
+    "In the same file, change the join-room button label to depend on `r.code`: `{r.code ? 'Enter room' : 'Knock to join'}` (or similar wording) so viewers see they need to knock."
+  ],
+  "critical_code_review_comments": [
+    "Dashboard.js currently reads `r.room_id.toUpperCase()` inside share-block instead of `r.code` — even after the code-visibility fix, prefer reading `r.code` so the truth source is the backend field.",
+    "server.py file is ~1189 lines — consider splitting into modules (auth.py, rooms.py, ws.py, notifications.py, events.py) for maintainability.",
+    "Two identical copy-code handlers on same button pair; consider extracting a single wrapper.",
+    "The `/api/notifications` (super-admin broadcast list) endpoint co-exists with `/api/notifications/me`; consider deprecating the older one or renaming for clarity."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new — regression suite for iteration 7)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "~85% (1 critical UI regression)"},
+  "test_credentials": "sidroks@hotmail.com / streamstar@1 (super admin). Freshly-registered viewer accounts require email_verified=true — force-verify via Mongo since RESEND is configured but preview inbox is unreachable.",
+  "seed_data_creation": "Test viewer accounts (email prefix `test_knock_*`, `test_ui_v_*`) created via /api/auth/register + force-verified in Mongo. One host_granted event was logged for the test viewer during grant-host test (then revoked).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend behavior fully green: knock flow, notifications, events, code visibility, rename all working. The only remaining bug is in Dashboard.js — the two conditional-rendering fixes described in action_items. Once fixed, retest the viewer flow: fresh viewer login -> share-block absent -> button labeled 'Knock to join' -> clicking navigates to /watch/<id> -> knock-waiting screen (which already works).",
+  "rca of the issue": "Root cause: Dashboard.js was updated to add data-testids for share-block/copy-code/copy-room but the conditional wrapping `{r.code && ...}` and button text switch based on `r.code` presence, which were part of the iteration-7 spec, were never applied. Backend correctly returns `code: null` for non-visited rooms — the frontend just doesn't consume the flag. Reproduction: (1) POST /api/auth/register a new viewer, force-verify email in Mongo, login. (2) Load /dashboard. (3) Every room card shows the purple share-block with the code (uppercased room_id) and link. Expected: no share-block for un-visited rooms. Mitigation: change lines 244-285 to `{r.code && (<div ... data-testid={`share-block-${r.room_id}`}>...{r.code.toUpperCase()}...</div>)}` and line 289 button text to `{r.code ? 'Enter room' : 'Knock to join'}`."
+}

@@ -25,29 +25,7 @@ export default function Dashboard() {
   const canHost = user?.can_host || user?.role === "super_admin" || user?.role === "host";
   const [reqOpen, setReqOpen] = useState(false);
   const [reqStatus, setReqStatus] = useState(null); // null | 'pending' | 'approved' | 'already'
-  const [autoApproveAt, setAutoApproveAt] = useState(null);
-  const [secondsLeft, setSecondsLeft] = useState(60);
   const { refresh } = useAuth();
-
-  useEffect(() => {
-    if (!autoApproveAt) return;
-    const tick = () => {
-      const diff = Math.max(0, Math.round((new Date(autoApproveAt).getTime() - Date.now()) / 1000));
-      setSecondsLeft(diff);
-      if (diff === 0) {
-        // Approval time reached — refresh /auth/me to pick up new role
-        refresh().then((u) => {
-          if (u?.can_host) {
-            setReqStatus("approved");
-            toast.success("You're now a host!");
-          }
-        });
-      }
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [autoApproveAt, refresh]);
 
   const load = async () => {
     setLoading(true);
@@ -108,8 +86,7 @@ export default function Dashboard() {
         return;
       }
       setReqStatus("pending");
-      setAutoApproveAt(data.auto_approve_at);
-      toast.success("Request sent to super admin");
+      toast.success("Request sent to the super admin");
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || "Could not send request");
     }
@@ -179,19 +156,19 @@ export default function Dashboard() {
                       <ShieldQuestion className="w-5 h-5 text-[#A855F7]" /> Request host access
                     </DialogTitle>
                     <DialogDescription className="text-white/60 text-sm pt-2">
-                      Only approved hosts can stream movies. Request access and the super admin will be notified. If they don&apos;t respond in <span className="text-white">60 seconds</span>, you&apos;ll be auto-approved.
+                      Only approved hosts can stream movies. Send a request to the super admin — you&apos;ll be notified the moment it&apos;s approved.
                     </DialogDescription>
                   </DialogHeader>
                   {reqStatus === "pending" ? (
-                    <div className="rounded-md border border-white/10 bg-black/30 p-4">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Clock className="w-4 h-4 text-[#A855F7] animate-pulse" />
-                        <span>Request sent to the super admin. You&apos;ll be notified as soon as it&apos;s reviewed.</span>
+                    <div className="rounded-md border border-[#A855F7]/30 bg-[#A855F7]/10 p-4" data-testid="request-pending">
+                      <div className="flex items-start gap-2 text-sm">
+                        <Clock className="w-4 h-4 text-[#A855F7] shrink-0 mt-0.5" />
+                        <span>Requested the SuperAdmin for host access. You&apos;ll shortly be notified!</span>
                       </div>
                     </div>
                   ) : reqStatus === "approved" ? (
                     <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-300" data-testid="request-approved">
-                      🎉 You&apos;re now a host. Close this dialog to create a room.
+                      You&apos;re now a host. Close this dialog to create a room.
                     </div>
                   ) : null}
                   <DialogFooter>

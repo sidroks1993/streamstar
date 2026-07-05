@@ -6,7 +6,7 @@ import VideoPlayer from "../components/VideoPlayer";
 import ChatPanel from "../components/ChatPanel";
 import { ReactionsOverlay, ReactionPicker } from "../components/Reactions";
 import { toast } from "sonner";
-import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square, Share2, Mail, MessageCircle } from "lucide-react";
+import { Copy, ArrowLeft, Film, MessageSquare, Circle, Square, Share2, Mail, MessageCircle, DoorOpen, Check, X, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog";
 
@@ -26,6 +26,10 @@ export default function WatchRoom() {
   const [chatOpen, setChatOpen] = useState(true);
   const [mutedIds, setMutedIds] = useState([]);
   const [recording, setRecording] = useState(false);
+  // Knock-to-enter admission state (guest side): null | 'pending' | 'granted' | 'denied'
+  const [admission, setAdmission] = useState(null);
+  // Host side: list of {user_id, name, email} awaiting approval
+  const [pendingGuests, setPendingGuests] = useState([]);
   const reactionsRef = useRef(null);
   const recorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -78,16 +82,46 @@ export default function WatchRoom() {
 
     ws.onopen = () => {};
     ws.onerror = () => {};
-    ws.onclose = () => {};
+    ws.onclose = () => {
+      // If the server closed while we were still waiting, treat as denied
+      setAdmission((prev) => (prev === "pending" ? "denied" : prev));
+    };
     ws.onmessage = async (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch { return; }
       switch (msg.type) {
+        case "pending_admission":
+          setAdmission("pending");
+          break;
+        case "admission_granted":
+          setAdmission("granted");
+          toast.success("You've been admitted — welcome!");
+          break;
+        case "admission_denied":
+          setAdmission("denied");
+          break;
+        case "join_request":
+          // Host receives a knock — add to pending list
+          if (msg.pending) {
+            setPendingGuests(msg.pending);
+          } else if (msg.user) {
+            setPendingGuests((prev) => {
+              if (prev.find((p) => p.user_id === msg.user.user_id)) return prev;
+              return [...prev, msg.user];
+            });
+          }
+          toast(`${msg.user?.name || "Someone"} is knocking to join`);
+          break;
+        case "pending_update":
+          setPendingGuests(msg.pending || []);
+          break;
         case "welcome":
           setMyId(msg.user_id);
           setIsHost(!!msg.is_host);
           setParticipants(msg.participants || []);
           setMutedIds(msg.muted || []);
+          setPendingGuests(msg.pending || []);
+          setAdmission("granted");
           // Viewer: ask host to start a peer connection for us
           if (!msg.is_host) ws.send(JSON.stringify({ type: "request_stream" }));
           break;
@@ -291,6 +325,12 @@ export default function WatchRoom() {
     send({ type: "host_mute", target: targetId, mute });
   };
 
+  const respondKnock = (targetId, approved) => {
+    send({ type: "join_response", target: targetId, approved });
+    setPendingGuests((prev) => prev.filter((p) => p.user_id !== targetId));
+    toast(approved ? "Guest admitted" : "Knock declined");
+  };
+
   const toggleRecording = () => {
     // Host: local recording of own stream. Viewer: ask host first.
     if (!isHost) {
@@ -354,6 +394,58 @@ export default function WatchRoom() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#050505] text-white/60">
         <div className="animate-pulse text-sm tracking-widest uppercase">Entering the theater…</div>
+      </div>
+    );
+  }
+
+  // Waiting-room overlay (before host admits us)
+  if (admission === "pending") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#050505] text-white px-6" data-testid="knock-waiting">
+        <div className="max-w-md w-full text-center">
+          <div className="relative w-20 h-20 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full bg-[#A855F7]/20 animate-ping" />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-[#A855F7] to-[#C026D3] flex items-center justify-center shadow-[0_0_40px_rgba(168,85,247,0.4)]">
+              <DoorOpen className="w-9 h-9 text-white" />
+            </div>
+          </div>
+          <div className="text-xs uppercase tracking-[0.24em] text-[#A855F7] mb-3">Knocking…</div>
+          <h1 className="font-display text-3xl tracking-tight mb-3">Waiting for the host to let you in</h1>
+          <p className="text-white/60 text-sm leading-relaxed mb-6">
+            <span className="text-white">{room.host_name || "The host"}</span> has been notified. You&apos;ll enter <span className="text-white">{room.name}</span> the moment they approve.
+          </p>
+          <div className="flex items-center justify-center gap-2 text-white/40 text-xs">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Awaiting response
+          </div>
+          <Button
+            onClick={() => navigate("/dashboard")}
+            variant="ghost"
+            className="mt-8 text-white/60 hover:text-white hover:bg-white/5"
+            data-testid="knock-cancel"
+          >
+            Cancel and go back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (admission === "denied") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#050505] text-white px-6" data-testid="knock-denied">
+        <div className="max-w-md w-full text-center">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+            <X className="w-7 h-7 text-white/50" />
+          </div>
+          <h1 className="font-display text-3xl tracking-tight mb-3">Access declined</h1>
+          <p className="text-white/60 text-sm leading-relaxed mb-6">
+            The host didn&apos;t admit you to <span className="text-white">{room.name}</span>. You can try again later or ask them for a direct invite.
+          </p>
+          <Button onClick={() => navigate("/dashboard")} className="bg-[#A855F7] hover:bg-[#C026D3] text-white">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to dashboard
+          </Button>
+        </div>
       </div>
     );
   }
@@ -432,7 +524,7 @@ export default function WatchRoom() {
               <Share2 className="w-5 h-5 text-[#A855F7]" /> Invite friends
             </DialogTitle>
             <DialogDescription className="text-white/60 text-sm">
-              Anyone with the link can join this room. Share the link, drop the room code, or send it straight to your contacts.
+              Anyone with the link can knock — you&apos;ll approve them from inside the room.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -470,6 +562,56 @@ export default function WatchRoom() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Host-side: pending knock approvals — floating card */}
+      {isHost && pendingGuests.length > 0 && (
+        <div
+          className="fixed bottom-6 left-6 z-40 w-80 rounded-xl border border-[#A855F7]/40 bg-[#0E0E0E]/95 backdrop-blur-xl shadow-2xl shadow-[#A855F7]/20 overflow-hidden"
+          data-testid="pending-guests-panel"
+        >
+          <div className="px-4 py-3 border-b border-white/10 bg-gradient-to-r from-[#A855F7]/15 to-transparent flex items-center gap-2">
+            <DoorOpen className="w-4 h-4 text-[#A855F7]" />
+            <div className="font-display text-sm">
+              {pendingGuests.length} {pendingGuests.length === 1 ? "person" : "people"} knocking
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {pendingGuests.map((g) => (
+              <div
+                key={g.user_id}
+                className="px-4 py-3 border-b border-white/5 flex items-center gap-3"
+                data-testid={`pending-guest-${g.user_id}`}
+              >
+                <div className="w-9 h-9 rounded-full bg-[#A855F7]/20 border border-[#A855F7]/40 flex items-center justify-center text-sm font-semibold text-[#A855F7] shrink-0">
+                  {(g.name || "?")[0]?.toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-white truncate">{g.name || "Guest"}</div>
+                  {g.email && <div className="text-[11px] text-white/40 truncate">{g.email}</div>}
+                </div>
+                <button
+                  onClick={() => respondKnock(g.user_id, true)}
+                  className="p-2 rounded-md bg-[#A855F7] hover:bg-[#C026D3] text-white transition-colors"
+                  data-testid={`approve-knock-${g.user_id}`}
+                  aria-label="Admit"
+                  title="Admit"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => respondKnock(g.user_id, false)}
+                  className="p-2 rounded-md bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                  data-testid={`deny-knock-${g.user_id}`}
+                  aria-label="Decline"
+                  title="Decline"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

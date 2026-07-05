@@ -117,6 +117,7 @@ class RoomOut(BaseModel):
     created_by: str
     created_at: str
     participant_count: int = 0
+    code: Optional[str] = None
 
 class GrantHostIn(BaseModel):
     user_id: str
@@ -138,8 +139,26 @@ class NotificationOut(BaseModel):
     type: str
     message: str
     user_id: Optional[str] = None
+    recipient_id: Optional[str] = None
+    meta: Optional[dict] = None
     created_at: str
     read: bool = False
+
+class EventOut(BaseModel):
+    id: str
+    event_type: str
+    actor_id: Optional[str] = None
+    actor_name: Optional[str] = None
+    actor_email: Optional[str] = None
+    room_id: Optional[str] = None
+    room_name: Optional[str] = None
+    meta: Optional[dict] = None
+    created_at: str
+
+class JoinResponseIn(BaseModel):
+    room_id: str
+    target_user_id: str
+    approved: bool
 
 # ---------------- Helpers ----------------
 
@@ -237,6 +256,19 @@ async def on_startup():
     await db.user_sessions.create_index("session_token", unique=True)
     await db.host_requests.create_index("user_id")
     await db.notifications.create_index("created_at")
+    await db.notifications.create_index("recipient_id")
+    await db.room_visits.create_index([("user_id", 1), ("room_id", 1)], unique=True)
+    # Events collection with 7-day TTL. `created_at` must be a BSON date for TTL to work.
+    try:
+        await db.events.create_index("created_at", expireAfterSeconds=7 * 24 * 3600)
+    except Exception:
+        pass
+    await db.events.create_index("event_type")
+    # Idempotent rename: legacy "AdminRoom" -> "SuperAdmin Room"
+    try:
+        await db.rooms.update_many({"name": "AdminRoom"}, {"$set": {"name": "SuperAdmin Room"}})
+    except Exception:
+        pass
 
     admin_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
     admin_password = os.environ.get("ADMIN_PASSWORD", "")
@@ -475,7 +507,7 @@ async def list_users(_: dict = Depends(require_super_admin)):
     return [user_to_out(u) for u in users]
 
 @api.post("/users/grant-host", response_model=UserOut)
-async def grant_host(body: GrantHostIn, _: dict = Depends(require_super_admin)):
+async def grant_host(body: GrantHostIn, admin: dict = Depends(require_super_admin)):
     user = await db.users.find_one({"user_id": body.user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -486,6 +518,27 @@ async def grant_host(body: GrantHostIn, _: dict = Depends(require_super_admin)):
         {"user_id": body.user_id},
         {"$set": {"can_host": body.can_host, "role": new_role}},
     )
+    # Also resolve any pending host request
+    if body.can_host:
+        await db.host_requests.update_one(
+            {"user_id": body.user_id, "status": "pending"},
+            {"$set": {"status": "approved", "resolved_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        await _add_notification(
+            "Hosting request granted — you can now create your own watch rooms.",
+            "host_granted",
+            user_id=body.user_id,
+            recipient_id=body.user_id,
+        )
+        await _log_event("host_granted", actor=admin, meta={"target_user_id": body.user_id, "method": "manual"})
+    else:
+        await _add_notification(
+            "Your host access has been revoked by the super admin.",
+            "host_revoked",
+            user_id=body.user_id,
+            recipient_id=body.user_id,
+        )
+        await _log_event("host_revoked", actor=admin, meta={"target_user_id": body.user_id})
     user = await db.users.find_one({"user_id": body.user_id}, {"_id": 0})
     return user_to_out(user)
 
@@ -534,16 +587,37 @@ async def change_my_password(body: ChangePasswordIn, user: dict = Depends(get_cu
 
 # ---------------- Host Requests + Notifications ----------------
 
-async def _add_notification(msg: str, ntype: str, user_id: Optional[str] = None):
+async def _add_notification(msg: str, ntype: str, user_id: Optional[str] = None, recipient_id: Optional[str] = None, meta: Optional[dict] = None):
     doc = {
         "id": uuid.uuid4().hex[:12],
         "type": ntype,
         "message": msg,
         "user_id": user_id,
+        "recipient_id": recipient_id,
+        "meta": meta or {},
         "created_at": datetime.now(timezone.utc).isoformat(),
         "read": False,
     }
     await db.notifications.insert_one(doc)
+    return doc
+
+async def _log_event(event_type: str, actor: Optional[dict] = None, room: Optional[dict] = None, meta: Optional[dict] = None):
+    """Append an event to the 7-day activity log. `created_at` must be a native datetime for TTL."""
+    try:
+        doc = {
+            "id": uuid.uuid4().hex[:12],
+            "event_type": event_type,
+            "actor_id": (actor or {}).get("user_id"),
+            "actor_name": (actor or {}).get("name"),
+            "actor_email": (actor or {}).get("email"),
+            "room_id": (room or {}).get("room_id"),
+            "room_name": (room or {}).get("name"),
+            "meta": meta or {},
+            "created_at": datetime.now(timezone.utc),
+        }
+        await db.events.insert_one(doc)
+    except Exception as e:
+        logger.warning(f"log_event failed: {e}")
 
 async def _auto_approve_host(user_id: str, delay_seconds: int = 60):
     await asyncio.sleep(delay_seconds)
@@ -555,6 +629,14 @@ async def _auto_approve_host(user_id: str, delay_seconds: int = 60):
     await db.users.update_one({"user_id": user_id}, {"$set": {"can_host": True, "role": "host"}})
     await db.host_requests.update_one({"user_id": user_id, "status": "pending"}, {"$set": {"status": "auto_approved", "resolved_at": datetime.now(timezone.utc).isoformat()}})
     await _add_notification(f"{user.get('name')} ({user.get('email')}) was auto-approved as host.", "host_auto_approved", user_id)
+    # Notify the user directly
+    await _add_notification(
+        "Hosting request granted — you can now create your own watch rooms.",
+        "host_granted",
+        user_id=user_id,
+        recipient_id=user_id,
+    )
+    await _log_event("host_granted", actor={"user_id": user_id, "name": user.get("name"), "email": user.get("email")}, meta={"method": "auto_60s"})
 
 @api.post("/host-requests")
 async def request_host(user: dict = Depends(get_current_user)):
@@ -594,6 +676,55 @@ async def mark_all_read(_: dict = Depends(require_super_admin)):
     await db.notifications.update_many({"read": False}, {"$set": {"read": True}})
     return {"ok": True}
 
+@api.get("/notifications/me", response_model=List[NotificationOut])
+async def list_my_notifications(user: dict = Depends(get_current_user)):
+    """Notifications targeted at the current user. Super admin additionally sees system broadcasts."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    if user.get("role") == "super_admin":
+        query = {
+            "$or": [
+                {"recipient_id": user["user_id"]},
+                {"recipient_id": None},
+            ],
+            "created_at": {"$gte": cutoff},
+        }
+    else:
+        query = {"recipient_id": user["user_id"], "created_at": {"$gte": cutoff}}
+    items = await db.notifications.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return items
+
+@api.post("/notifications/{notif_id}/read")
+async def mark_one_read(notif_id: str, user: dict = Depends(get_current_user)):
+    q = {"id": notif_id}
+    if user.get("role") != "super_admin":
+        q["recipient_id"] = user["user_id"]
+    res = await db.notifications.update_one(q, {"$set": {"read": True}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"ok": True}
+
+@api.post("/notifications/me/read-all")
+async def mark_my_all_read(user: dict = Depends(get_current_user)):
+    if user.get("role") == "super_admin":
+        query = {"$or": [{"recipient_id": user["user_id"]}, {"recipient_id": None}], "read": False}
+    else:
+        query = {"recipient_id": user["user_id"], "read": False}
+    await db.notifications.update_many(query, {"$set": {"read": True}})
+    return {"ok": True}
+
+@api.get("/events", response_model=List[EventOut])
+async def list_events(_: dict = Depends(require_super_admin), event_type: Optional[str] = None, limit: int = 200):
+    q: Dict[str, str] = {}
+    if event_type:
+        q["event_type"] = event_type
+    items = await db.events.find(q, {"_id": 0}).sort("created_at", -1).to_list(min(limit, 500))
+    # datetime -> iso string for JSON
+    for it in items:
+        ca = it.get("created_at")
+        if isinstance(ca, datetime):
+            it["created_at"] = ca.isoformat()
+    return items
+
 # ---------------- Rooms ----------------
 
 @api.post("/rooms", response_model=RoomOut)
@@ -611,26 +742,52 @@ async def create_room(body: RoomCreateIn, user: dict = Depends(get_current_user)
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.rooms.insert_one(doc)
-    return RoomOut(**doc, participant_count=0)
+    await _log_event("room_created", actor=user, room=doc, meta={"is_public": doc["is_public"]})
+    return RoomOut(**doc, participant_count=0, code=room_id)
+
+async def _visible_room_ids_for(user: dict) -> Set[str]:
+    """Rooms whose join code a user is allowed to see (excluding rooms they host — those always visible)."""
+    if user.get("role") == "super_admin":
+        return set()  # super admin sees all — caller handles this
+    vs = await db.room_visits.find({"user_id": user["user_id"]}, {"_id": 0, "room_id": 1}).to_list(500)
+    return {v["room_id"] for v in vs}
+
+def _can_see_code(user: dict, room: dict, visits: Set[str]) -> bool:
+    if user.get("role") == "super_admin":
+        return True
+    if room.get("host_id") == user["user_id"]:
+        return True
+    return room["room_id"] in visits
 
 @api.get("/rooms", response_model=List[RoomOut])
-async def list_public_rooms(_: dict = Depends(get_current_user)):
+async def list_public_rooms(user: dict = Depends(get_current_user)):
     rooms = await db.rooms.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(200)
-    return [RoomOut(**r, participant_count=len(ROOMS.get(r["room_id"], {}))) for r in rooms]
+    visits = await _visible_room_ids_for(user) if user.get("role") != "super_admin" else set()
+    out = []
+    for r in rooms:
+        code = r["room_id"] if _can_see_code(user, r, visits) else None
+        out.append(RoomOut(**r, participant_count=len(ROOMS.get(r["room_id"], {})), code=code))
+    return out
 
 @api.get("/rooms/{room_id}", response_model=RoomOut)
-async def get_room(room_id: str, _: dict = Depends(get_current_user)):
+async def get_room(room_id: str, user: dict = Depends(get_current_user)):
     r = await db.rooms.find_one({"room_id": room_id}, {"_id": 0})
     if not r:
         raise HTTPException(status_code=404, detail="Room not found")
-    return RoomOut(**r, participant_count=len(ROOMS.get(room_id, {})))
+    visits = await _visible_room_ids_for(user) if user.get("role") != "super_admin" else set()
+    code = room_id if _can_see_code(user, r, visits) else None
+    return RoomOut(**r, participant_count=len(ROOMS.get(room_id, {})), code=code)
 
 # ---------------- WebSocket signaling + chat ----------------
 
 # room_id -> { user_id: {"ws": WebSocket, "name": str, "is_host": bool} }
 ROOMS: Dict[str, Dict[str, dict]] = {}
+# room_id -> { user_id: {"ws": WebSocket, "name": str, "email": str, "admitted_event": asyncio.Event, "admitted": bool} }
+PENDING: Dict[str, Dict[str, dict]] = {}
 # room_id -> {"muted": Set[user_id]}
 ROOM_STATE: Dict[str, dict] = {}
+# room_id -> datetime when host most recently started streaming (for duration tracking)
+STREAM_STARTS: Dict[str, datetime] = {}
 
 def _muted(room_id: str) -> Set[str]:
     st = ROOM_STATE.setdefault(room_id, {"muted": set()})
@@ -663,6 +820,41 @@ def _participants_snapshot(room_id: str) -> List[dict]:
         for uid, p in ROOMS.get(room_id, {}).items()
     ]
 
+def _pending_snapshot(room_id: str) -> List[dict]:
+    return [
+        {"user_id": uid, "name": p["name"], "email": p.get("email")}
+        for uid, p in PENDING.get(room_id, {}).items()
+    ]
+
+async def _upsert_room_visit(user_id: str, room_id: str):
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.room_visits.update_one(
+        {"user_id": user_id, "room_id": room_id},
+        {
+            "$set": {"last_joined_at": now_iso},
+            "$setOnInsert": {"first_joined_at": now_iso, "user_id": user_id, "room_id": room_id},
+        },
+        upsert=True,
+    )
+
+async def _cancel_pending_notification(recipient_id: Optional[str], target_user_id: str, room_id: str):
+    """When a knock is resolved, mark the corresponding 'join_knock' notification as read."""
+    if not recipient_id:
+        return
+    try:
+        await db.notifications.update_many(
+            {
+                "type": "join_knock",
+                "recipient_id": recipient_id,
+                "meta.room_id": room_id,
+                "meta.user_id": target_user_id,
+                "read": False,
+            },
+            {"$set": {"read": True}},
+        )
+    except Exception:
+        pass
+
 @app.websocket("/api/ws/room/{room_id}")
 async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
     user = await _find_user_by_token(token)
@@ -677,6 +869,92 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
     await websocket.accept()
     user_id = user["user_id"]
     is_host = (room.get("host_id") == user_id) and (user.get("can_host") or user.get("role") in ("host", "super_admin"))
+    is_admin = user.get("role") == "super_admin"
+
+    already_visited = await db.room_visits.find_one({"user_id": user_id, "room_id": room_id})
+    can_auto_admit = is_host or is_admin or already_visited is not None
+
+    # ---------- Knock flow for first-time non-host, non-admin visitors ----------
+    if not can_auto_admit:
+        entry = {
+            "ws": websocket,
+            "name": user.get("name") or "Guest",
+            "email": user.get("email"),
+            "admitted_event": asyncio.Event(),
+            "admitted": False,
+        }
+        PENDING.setdefault(room_id, {})[user_id] = entry
+        await websocket.send_json({
+            "type": "pending_admission",
+            "room_name": room.get("name"),
+            "host_name": room.get("host_name"),
+        })
+        host_uid = room.get("host_id")
+        # Live-notify any host present in the room
+        if host_uid and host_uid in ROOMS.get(room_id, {}):
+            await _send_to(room_id, host_uid, {
+                "type": "join_request",
+                "user": {"user_id": user_id, "name": entry["name"], "email": entry["email"]},
+                "pending": _pending_snapshot(room_id),
+            })
+        # Persistent notification for the host (so they see it even if offline)
+        if host_uid:
+            await _add_notification(
+                f"{entry['name']} is knocking to join '{room.get('name')}'",
+                "join_knock",
+                user_id=user_id,
+                recipient_id=host_uid,
+                meta={"room_id": room_id, "user_id": user_id, "user_name": entry["name"]},
+            )
+        await _log_event("join_knock", actor=user, room=room)
+
+        # Wait for admission or client disconnect / cancel
+        async def _wait_admission() -> Optional[bool]:
+            recv_task: Optional[asyncio.Task] = None
+            admit_task = asyncio.create_task(entry["admitted_event"].wait())
+            try:
+                while True:
+                    recv_task = asyncio.create_task(websocket.receive_json())
+                    done, _ = await asyncio.wait({recv_task, admit_task}, return_when=asyncio.FIRST_COMPLETED)
+                    if admit_task in done:
+                        recv_task.cancel()
+                        return entry["admitted"]
+                    # Recv completed
+                    try:
+                        msg = recv_task.result()
+                    except Exception:
+                        return None
+                    if isinstance(msg, dict) and msg.get("type") == "cancel_knock":
+                        return None
+            finally:
+                if recv_task and not recv_task.done():
+                    recv_task.cancel()
+                if not admit_task.done():
+                    admit_task.cancel()
+
+        try:
+            result = await _wait_admission()
+        except WebSocketDisconnect:
+            result = None
+        PENDING.get(room_id, {}).pop(user_id, None)
+        await _cancel_pending_notification(room.get("host_id"), user_id, room_id)
+        if result is not True:
+            try:
+                if result is False:
+                    await websocket.send_json({"type": "admission_denied"})
+                await websocket.close(code=4403)
+            except Exception:
+                pass
+            return
+        try:
+            await websocket.send_json({"type": "admission_granted"})
+        except Exception:
+            return
+        # Fall through to admitted flow
+        await _upsert_room_visit(user_id, room_id)
+    else:
+        # Auto-admit path — still record the visit
+        await _upsert_room_visit(user_id, room_id)
 
     if room_id not in ROOMS:
         ROOMS[room_id] = {}
@@ -689,6 +967,7 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
             pass
 
     ROOMS[room_id][user_id] = {"ws": websocket, "name": user.get("name") or "Guest", "is_host": is_host}
+    await _log_event("participant_joined", actor=user, room=room)
 
     # Tell the client its context
     await websocket.send_json({
@@ -699,6 +978,7 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
         "host_id": room.get("host_id"),
         "participants": _participants_snapshot(room_id),
         "muted": list(_muted(room_id)),
+        "pending": _pending_snapshot(room_id) if is_host else [],
     })
     # Notify others of the new participant
     await _broadcast(room_id, {
@@ -773,6 +1053,44 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
                     "user_id": target,
                     "participants": _participants_snapshot(room_id),
                 })
+            elif mtype == "join_response":
+                # Host or super_admin responds to a pending knock
+                if not (is_host or is_admin):
+                    continue
+                target = msg.get("target")
+                approved = bool(msg.get("approved"))
+                pending_entry = PENDING.get(room_id, {}).get(target)
+                if not pending_entry:
+                    continue
+                pending_entry["admitted"] = approved
+                pending_entry["admitted_event"].set()
+                # Notify the pending user
+                target_name = pending_entry.get("name") or "Guest"
+                if approved:
+                    await _add_notification(
+                        f"You were admitted to '{room.get('name')}'.",
+                        "join_approved",
+                        user_id=target,
+                        recipient_id=target,
+                        meta={"room_id": room_id, "room_name": room.get("name")},
+                    )
+                    await _log_event("guest_admitted", actor=user, room=room, meta={"target_user_id": target, "target_name": target_name})
+                else:
+                    await _add_notification(
+                        f"Your request to join '{room.get('name')}' was declined.",
+                        "join_denied",
+                        user_id=target,
+                        recipient_id=target,
+                        meta={"room_id": room_id, "room_name": room.get("name")},
+                    )
+                    await _log_event("guest_denied", actor=user, room=room, meta={"target_user_id": target, "target_name": target_name})
+                # Broadcast updated pending list to host(s)
+                for uid, p in ROOMS.get(room_id, {}).items():
+                    if p.get("is_host"):
+                        try:
+                            await p["ws"].send_json({"type": "pending_update", "pending": _pending_snapshot(room_id)})
+                        except Exception:
+                            pass
             elif mtype in ("webrtc_offer", "webrtc_answer", "webrtc_ice"):
                 to = msg.get("to")
                 if not to:
@@ -783,10 +1101,20 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
                     "data": msg.get("data"),
                 })
             elif mtype == "host_streaming":
-                # Host notifies viewers streaming has started/stopped
+                streaming = bool(msg.get("streaming"))
+                # Only the actual host can toggle streaming state
+                if is_host:
+                    if streaming:
+                        STREAM_STARTS[room_id] = datetime.now(timezone.utc)
+                        await _log_event("stream_started", actor=user, room=room)
+                    else:
+                        start = STREAM_STARTS.pop(room_id, None)
+                        if start:
+                            duration_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
+                            await _log_event("stream_ended", actor=user, room=room, meta={"duration_ms": duration_ms})
                 await _broadcast(room_id, {
                     "type": "host_streaming",
-                    "streaming": bool(msg.get("streaming")),
+                    "streaming": streaming,
                     "host_id": user_id,
                 }, exclude=user_id)
             elif mtype == "request_stream":
@@ -828,7 +1156,14 @@ async def ws_room(websocket: WebSocket, room_id: str, token: str = Query(...)):
     except Exception as e:
         logger.info(f"ws error: {e}")
     finally:
+        # If host disconnects while streaming, close out the stream session
+        if is_host and room_id in STREAM_STARTS:
+            start = STREAM_STARTS.pop(room_id, None)
+            if start:
+                duration_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
+                await _log_event("stream_ended", actor=user, room=room, meta={"duration_ms": duration_ms, "reason": "host_disconnect"})
         ROOMS.get(room_id, {}).pop(user_id, None)
+        await _log_event("participant_left", actor=user, room=room)
         await _broadcast(room_id, {
             "type": "participant_left",
             "user_id": user_id,

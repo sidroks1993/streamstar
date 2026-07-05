@@ -7,7 +7,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
 import { toast } from "sonner";
-import { ShieldCheck, Crown, Video, User as UserIcon, KeyRound, Trash2, Bell, RefreshCw } from "lucide-react";
+import { ShieldCheck, Crown, Video, User as UserIcon, KeyRound, Trash2, Bell, RefreshCw, Activity, DoorOpen, Radio, Film, LogIn, LogOut as LogOutIcon } from "lucide-react";
 
 function fmt(iso) {
   if (!iso) return "—";
@@ -17,26 +17,54 @@ function fmt(iso) {
   } catch { return iso; }
 }
 
+function fmtDuration(ms) {
+  if (!ms || ms < 0) return "—";
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+const EVENT_META = {
+  room_created: { icon: Film, color: "text-[#A855F7]", label: "Room created" },
+  participant_joined: { icon: LogIn, color: "text-emerald-400", label: "Joined room" },
+  participant_left: { icon: LogOutIcon, color: "text-white/50", label: "Left room" },
+  stream_started: { icon: Radio, color: "text-[#EC4899]", label: "Stream started" },
+  stream_ended: { icon: Radio, color: "text-[#22D3EE]", label: "Stream ended" },
+  host_granted: { icon: ShieldCheck, color: "text-emerald-400", label: "Host granted" },
+  host_revoked: { icon: ShieldCheck, color: "text-[#EC4899]", label: "Host revoked" },
+  join_knock: { icon: DoorOpen, color: "text-[#A855F7]", label: "Knocked" },
+  guest_admitted: { icon: DoorOpen, color: "text-emerald-400", label: "Guest admitted" },
+  guest_denied: { icon: DoorOpen, color: "text-[#EC4899]", label: "Guest denied" },
+};
+
 export default function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [notifs, setNotifs] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [eventFilter, setEventFilter] = useState("all");
   const [resetUser, setResetUser] = useState(null);
   const [newPw, setNewPw] = useState("");
 
   const load = async () => {
     setLoading(true);
     try {
-      const [u, n, r] = await Promise.all([
+      const [u, n, r, e] = await Promise.all([
         api.get("/users"),
         api.get("/notifications"),
         api.get("/host-requests"),
+        api.get("/events"),
       ]);
       setUsers(u.data);
       setNotifs(n.data);
       setRequests(r.data);
+      setEvents(e.data);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || "Cannot load admin data");
     } finally {
@@ -98,6 +126,12 @@ export default function AdminPanel() {
   });
 
   const pending = requests.filter((r) => r.status === "pending");
+
+  const eventTypes = useMemo(() => Array.from(new Set(events.map((e) => e.event_type))).sort(), [events]);
+  const filteredEvents = useMemo(
+    () => (eventFilter === "all" ? events : events.filter((e) => e.event_type === eventFilter)),
+    [events, eventFilter],
+  );
 
   return (
     <div className="min-h-screen bg-[#050505] text-white">
@@ -161,6 +195,75 @@ export default function AdminPanel() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Users */}
+        <div className="flex items-center justify-between mb-4 gap-4 flex-wrap mt-8">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-[#A855F7]" />
+            <h2 className="font-display text-2xl tracking-tight">Activity log</h2>
+            <span className="text-xs text-white/40 ml-2">Everything from the last 7 days</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setEventFilter("all")}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                eventFilter === "all"
+                  ? "bg-[#A855F7]/15 border-[#A855F7]/40 text-[#A855F7]"
+                  : "bg-white/5 border-white/10 text-white/60 hover:text-white"
+              }`}
+              data-testid="event-filter-all"
+            >
+              All ({events.length})
+            </button>
+            {eventTypes.map((t) => (
+              <button
+                key={t}
+                onClick={() => setEventFilter(t)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  eventFilter === t
+                    ? "bg-[#A855F7]/15 border-[#A855F7]/40 text-[#A855F7]"
+                    : "bg-white/5 border-white/10 text-white/60 hover:text-white"
+                }`}
+                data-testid={`event-filter-${t}`}
+              >
+                {(EVENT_META[t]?.label) || t.replace(/_/g, " ")}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-[#0E0E0E] overflow-hidden mb-10" data-testid="activity-log">
+          <div className="max-h-96 overflow-y-auto">
+            {filteredEvents.length === 0 ? (
+              <div className="p-8 text-white/40 text-sm text-center">No events yet in this window.</div>
+            ) : filteredEvents.map((e) => {
+              const meta = EVENT_META[e.event_type] || { icon: Activity, color: "text-white/60", label: e.event_type };
+              const Icon = meta.icon;
+              return (
+                <div key={e.id} className="px-6 py-3 border-b border-white/5 flex items-center gap-4 hover:bg-white/[0.02]" data-testid={`event-${e.id}`}>
+                  <div className={`w-8 h-8 rounded-md bg-white/5 border border-white/10 flex items-center justify-center shrink-0 ${meta.color}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white/90 truncate">
+                      <span className="font-medium">{e.actor_name || "System"}</span>
+                      <span className="text-white/50"> · {meta.label}</span>
+                      {e.room_name && <span className="text-white/70"> · {e.room_name}</span>}
+                    </div>
+                    <div className="text-[11px] text-white/40 mt-0.5 flex items-center gap-2 flex-wrap">
+                      <span>{fmt(e.created_at)}</span>
+                      {e.actor_email && <span>· {e.actor_email}</span>}
+                      {e.meta?.duration_ms != null && (
+                        <span className="text-[#22D3EE]">· {fmtDuration(e.meta.duration_ms)} watched</span>
+                      )}
+                      {e.meta?.method && <span>· {e.meta.method}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
