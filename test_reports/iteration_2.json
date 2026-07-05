@@ -1,0 +1,16 @@
+{
+  "summary": "Retest of the two previously-failing fixes. Both fixes are now present in code and verified live: (1) Navbar 'nav-user' chip is a <Link to='/dashboard'> and clicking it navigates to /dashboard. (2) /join route renders JoinByCode with case-insensitive code handling — uppercase input is lowercased/trimmed before GET /api/rooms/{code}; unauthenticated users are redirected to /login (with pendingRoom stashed), logged-in users get a 'No room found with that code' toast for bogus codes.",
+  "tested_scope": ["frontend"],
+  "passed": [
+    "GET /join loads JoinByCode with join-code-input and join-code-submit",
+    "Unauthenticated submit of uppercase bogus code redirects to /login (pendingRoom flow)",
+    "Login with sidroks@hotmail.com / streamstar@1 succeeds and lands on /dashboard",
+    "Navbar nav-user is <a href='/dashboard'> and click navigates to /dashboard",
+    "Logged-in submit of uppercase bogus code shows 'No room found with that code' toast (confirms case-insensitive room lookup path)"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (2/2 fixes verified)"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}
